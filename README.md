@@ -42,18 +42,19 @@ LLM-Filter 是一个基于大型语言模型(LLM)的智能对话系统，集成�
 ### 安装步骤
 
 1. 克隆项目仓库
+
    ```bash
    git clone <repository-url>
    cd llm-filter
    ```
-
 2. 安装依赖
+
    ```bash
    pip install -r requirements.txt
    ```
-
 3. 配置环境变量
    创建 `.env` 文件并设置以下变量：
+
    ```
    MONGODB_URL=mongodb://localhost:27017
    DATABASE_NAME=llm_filter
@@ -63,13 +64,13 @@ LLM-Filter 是一个基于大型语言模型(LLM)的智能对话系统，集成�
    OLLAMA_API_BASE_URL=http://localhost:11434
    OLLAMA_MODEL=llama2
    ```
-
 4. 初始化数据库
+
    ```bash
    python init_db.py
    ```
-
 5. 启动应用
+
    ```bash
    uvicorn app.main:app --reload
    ```
@@ -187,8 +188,10 @@ curl -X POST "http://localhost:8000/api/v1/conversations/{conversation_id}/messa
 
 ## 许可证
 
-[指定许可证类型]
+MIT License
+
+Copyright (c) 2025 uuo00_n
 
 ## 联系方式
 
-[提供联系信息]
+作者：uuo00_n
