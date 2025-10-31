@@ -43,7 +43,10 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
         Dict: 包含处理结果的字典
     """
     # 检查敏感词
-    contains_sensitive, sensitive_words = sensitive_word_filter.check_text(content)
+    check_result = sensitive_word_filter.check_text(content)
+    contains_sensitive = check_result["contains_sensitive_words"]
+    sensitive_words = check_result["sensitive_words_found"]
+    highest_severity = check_result["highest_severity"]
     
     # 创建用户消息
     user_message = {
@@ -51,7 +54,8 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
         "content": content,
         "timestamp": datetime.now(),
         "contains_sensitive_words": contains_sensitive,
-        "sensitive_words_found": sensitive_words
+        "sensitive_words_found": sensitive_words,
+        "highest_severity": highest_severity
     }
     
     # 更新对话
@@ -71,6 +75,7 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
             "conversation_id": ObjectId(conversation_id),
             "message_content": content,
             "sensitive_words_found": sensitive_words,
+            "highest_severity": highest_severity,
             "timestamp": datetime.now()
         }
         

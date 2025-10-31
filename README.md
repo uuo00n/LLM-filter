@@ -11,7 +11,9 @@ LLM-Filter 是一个基于大型语言模型(LLM)的智能对话系统，集成�
 - **用户管理**：支持用户注册、登录和权限管理
 - **对话历史**：保存和管理用户的对话历史记录
 - **敏感词管理**：提供敏感词的添加、删除和查询功能
-- **敏感记录追踪**：记录并可查询敏感词触发情况
+- **敏感词分类**：支持敏感词分类和子分类管理，可按类别筛选
+- **批量导入**：支持批量导入敏感词，提高管理效率
+- **敏感记录追踪**：记录并可查询敏感词触发情况，支持多维度筛选
 
 ## 系统架构
 
@@ -30,6 +32,61 @@ LLM-Filter 是一个基于大型语言模型(LLM)的智能对话系统，集成�
 - **数据模型层**：定义数据结构
 - **工具层**：提供敏感词过滤等功能
 - **数据库层**：处理数据持久化
+
+### 数据库结构
+
+系统使用MongoDB作为数据库，包含以下集合：
+
+#### 1. users 集合
+
+用户信息存储，包含字段：
+- `_id`: 用户唯一标识
+- `username`: 用户名
+- `email`: 电子邮箱
+- `hashed_password`: 加密后的密码
+- `role`: 用户角色，可为 "user" 或 "admin"
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
+
+#### 2. conversations 集合
+
+对话信息存储，包含字段：
+- `_id`: 对话唯一标识
+- `user_id`: 关联的用户ID
+- `messages`: 消息列表，每条消息包含：
+  - `role`: 消息角色，可为 "user" 或 "assistant"
+  - `content`: 消息内容
+  - `timestamp`: 消息时间戳
+  - `contains_sensitive_words`: 是否包含敏感词
+  - `sensitive_words_found`: 发现的敏感词列表
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
+
+#### 3. sensitive_words 集合
+
+敏感词信息存储，包含字段：
+- `_id`: 敏感词唯一标识
+- `word`: 敏感词内容
+- `category`: 敏感词主分类（如"违法活动"、"不良内容"等）
+- `subcategory`: 敏感词子分类（如"赌博"、"自杀"等）
+- `severity`: 严重程度（1-5级，5为最严重）
+- `created_at`: 创建时间
+- `updated_at`: 更新时间
+
+#### 4. sensitive_records 集合
+
+敏感词检测记录，包含字段：
+- `_id`: 记录唯一标识
+- `user_id`: 关联的用户ID
+- `conversation_id`: 关联的对话ID
+- `message_content`: 触发检测的消息内容
+- `sensitive_words_found`: 发现的敏感词详细信息列表，每项包含：
+  - `word`: 敏感词
+  - `category`: 主分类
+  - `subcategory`: 子分类
+  - `severity`: 严重程度
+- `highest_severity`: 记录中最高的严重程度
+- `timestamp`: 记录时间
 
 ## 安装与配置
 
@@ -64,6 +121,28 @@ LLM-Filter 是一个基于大型语言模型(LLM)的智能对话系统，集成�
    OLLAMA_API_BASE_URL=http://localhost:11434
    OLLAMA_MODEL=llama2
    ```
+
+   **生成安全的SECRET_KEY**
+   
+   为了确保系统安全，请使用以下方法生成一个强随机密钥：
+
+   ```python
+   # 在Python终端中运行
+   import secrets
+   print(secrets.token_hex(32))  # 生成一个64字符的随机十六进制字符串
+   ```
+
+   或者使用命令行：
+
+   ```bash
+   # Linux/Mac
+   openssl rand -hex 32
+   
+   # 或者
+   python -c "import secrets; print(secrets.token_hex(32))"
+   ```
+
+   将生成的密钥复制到`.env`文件的`SECRET_KEY`变量中。
 4. 初始化数据库
 
    ```bash
@@ -94,8 +173,8 @@ LLM-Filter 是一个基于大型语言模型(LLM)的智能对话系统，集成�
 
 - `POST /api/v1/sensitive-words` - 添加敏感词
 - `DELETE /api/v1/sensitive-words/{word_id}` - 删除敏感词
-- `GET /api/v1/sensitive-words` - 获取所有敏感词
-- `GET /api/v1/sensitive-records` - 获取敏感词记录
+- `GET /api/v1/sensitive-words` - 获取所有敏感词（支持按类别、子类别和严重程度筛选）
+- `GET /api/v1/sensitive-records` - 获取敏感词记录（支持按用户、对话、时间范围、类别、子类别和严重程度筛选）
 
 ## 项目结构
 
@@ -123,6 +202,22 @@ llm-filter/
 
 - `TrieNode` 类：实现 Trie 树的节点结构
 - `SensitiveWordFilter` 类：提供敏感词加载和检测功能
+
+#### 敏感词分类系统
+
+敏感词采用多层分类体系，便于管理和筛选：
+
+1. **主分类**：包括违法活动、不良内容、政治内容、歧视言论、暴力内容、色情内容、毒品相关、赌博相关、诈骗相关等
+2. **子分类**：每个主分类下设多个子分类，如：
+   - 违法活动：贩毒、赌博、诈骗、传销等
+   - 不良内容：自杀、自残、暴力、血腥等
+   - 歧视言论：种族歧视、性别歧视、地域歧视等
+3. **严重程度**：1-5级，5级为最严重
+
+这种分类系统使管理员能够：
+- 精确定位和管理敏感内容
+- 按类别和严重程度筛选敏感记录
+- 针对不同类型的敏感内容制定不同的处理策略
 
 ### 对话服务
 

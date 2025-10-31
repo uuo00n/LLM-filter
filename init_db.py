@@ -56,42 +56,80 @@ async def init_db():
         {
             "word": "赌博",
             "category": "违法活动",
+            "subcategory": "赌博",
+            "severity": 3,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         },
         {
             "word": "色情",
-            "category": "违法活动",
+            "category": "色情内容",
+            "subcategory": "色情服务",
+            "severity": 4,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         },
         {
             "word": "毒品",
-            "category": "违法活动",
+            "category": "毒品相关",
+            "subcategory": "毒品名称",
+            "severity": 5,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         },
         {
             "word": "诈骗",
-            "category": "违法活动",
+            "category": "诈骗相关",
+            "subcategory": "网络诈骗",
+            "severity": 4,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         },
         {
             "word": "暴力",
-            "category": "不良内容",
+            "category": "暴力内容",
+            "subcategory": "语言暴力",
+            "severity": 3,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         },
         {
             "word": "自杀",
             "category": "不良内容",
+            "subcategory": "自杀",
+            "severity": 5,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         },
         {
             "word": "政治敏感",
             "category": "政治内容",
+            "subcategory": "敏感事件",
+            "severity": 4,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        },
+        {
+            "word": "种族歧视",
+            "category": "歧视言论",
+            "subcategory": "种族歧视",
+            "severity": 4,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        },
+        {
+            "word": "性别歧视",
+            "category": "歧视言论",
+            "subcategory": "性别歧视",
+            "severity": 3,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        },
+        {
+            "word": "恐怖主义",
+            "category": "暴力内容",
+            "subcategory": "恐怖主义",
+            "severity": 5,
             "created_at": datetime.now(),
             "updated_at": datetime.now()
         }
@@ -133,10 +171,39 @@ async def init_db():
     # 创建敏感词记录集合并添加假数据
     sensitive_records = [
         {
-            "user_id": user_id,
-            "conversation_id": conversation_id,
-            "message_content": "我想了解一下赌博的方法",
-            "sensitive_words_found": ["赌博"],
+            "user_id": "user123",
+            "conversation_id": "conv123",
+            "message_content": "我想了解一下赌博的事情",
+            "sensitive_words_found": [
+                {
+                    "word": "赌博",
+                    "category": "违法活动",
+                    "subcategory": "赌博",
+                    "severity": 3
+                }
+            ],
+            "highest_severity": 3,
+            "timestamp": datetime.now()
+        },
+        {
+            "user_id": "user123",
+            "conversation_id": "conv456",
+            "message_content": "如何获取毒品和色情内容",
+            "sensitive_words_found": [
+                {
+                    "word": "毒品",
+                    "category": "毒品相关",
+                    "subcategory": "毒品名称",
+                    "severity": 5
+                },
+                {
+                    "word": "色情",
+                    "category": "色情内容",
+                    "subcategory": "色情服务",
+                    "severity": 4
+                }
+            ],
+            "highest_severity": 5,
             "timestamp": datetime.now()
         }
     ]
