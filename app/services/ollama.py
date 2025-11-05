@@ -31,7 +31,7 @@ async def generate_response(messages: List[Dict[str, str]]) -> str:
         # 发送请求到Ollama API
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{settings.OLLAMA_BASE_URL}/api/generate",
+                f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/generate",
                 json=data,
                 timeout=60.0
             )
