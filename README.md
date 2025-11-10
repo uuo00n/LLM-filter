@@ -196,9 +196,8 @@ curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
 # words.json 示例：[ {"word":"赌博","category":"违法活动","subcategory":"赌博","severity":3} ]
 ```
 
-### 仪表盘（/dashboard）
-- GET `/api/v1/dashboard/summary` 根据角色等级与版别返回个性化首页模块，最低 1 级即可访问；随角色等级与版别增加返回更多模块。
-- 也挂载了版别限制依赖（require_edition_for_mode），保证仅允许后端设置的版别访问。
+### 仪表盘说明
+后端不再提供 `/dashboard` 接口，仪表盘由前端实现并直接对接相应数据源或后端业务接口（例如出勤、课表、请假、指示等）。
 
 ---
 
