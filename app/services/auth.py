@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from app.core.config import settings
 from app.db.mongodb import db
 from bson import ObjectId
+from app.models.role import get_role_level
 
 # 密码加密上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -27,7 +28,11 @@ async def authenticate_user(username: str, password: str):
     return user
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """创建访问令牌"""
+    """创建访问令牌
+    关键点：
+    - 在 JWT 载荷中加入角色与版别信息，便于前端解码后快速展示；
+    - 仍以服务端数据库查询为准，避免客户端伪造带来的安全问题。
+    """
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -49,6 +54,11 @@ async def get_current_user(token: str):
         if user is None:
             return None
         
+        # 兼容兜底：若用户数据缺少角色等级或版别，则进行补充
+        if user.get("role_level") is None:
+            user["role_level"] = get_role_level(user.get("role"))
+        if user.get("edition") is None:
+            user["edition"] = "edu"  # 默认版别为教育版
         return user
     except JWTError:
         return None

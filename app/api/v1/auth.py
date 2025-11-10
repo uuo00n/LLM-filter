@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.db.mongodb import db
 from app.schemas.user import UserCreate, UserResponse, Token
 from app.services.auth import authenticate_user, create_access_token, get_password_hash
+from app.models.role import get_role_level
 
 router = APIRouter()
 
@@ -33,7 +34,9 @@ async def register(user_data: UserCreate):
         "username": user_data.username,
         "email": user_data.email,
         "hashed_password": hashed_password,
-        "role": "user"  # 默认为普通用户
+        "role": "user",         # 默认为普通用户
+        "role_level": 1,          # 默认为 1 级
+        "edition": "edu",        # 默认为教育版，可在后续管理员界面修改
     }
     
     result = await db.db.users.insert_one(user)
@@ -45,7 +48,9 @@ async def register(user_data: UserCreate):
         "id": str(created_user["_id"]),
         "username": created_user["username"],
         "email": created_user["email"],
-        "role": created_user["role"]
+        "role": created_user.get("role", "user"),
+        "role_level": created_user.get("role_level", 1),
+        "edition": created_user.get("edition", "edu"),
     }
 
 @router.post("/login", response_model=Token)
@@ -59,11 +64,22 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 创建访问令牌
+    # 创建访问令牌（在载荷中加入用户的角色与版别信息）
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user["_id"])},
+        data={
+            "sub": str(user["_id"]),
+            "role": user.get("role", "user"),
+            "role_level": user.get("role_level", get_role_level(user.get("role"))),
+            "edition": user.get("edition", "edu"),
+        },
         expires_delta=access_token_expires
     )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
+    # 登录响应中回传基础用户信息，前端免一次 /me 调用；后端仍应以服务端鉴权为准
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.get("role", "user"),
+        "role_level": user.get("role_level", get_role_level(user.get("role"))),
+        "edition": user.get("edition", "edu"),
+    }

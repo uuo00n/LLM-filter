@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 import csv
 import io
-from app.api.deps import get_current_admin_user
+from app.api.deps import get_current_admin_user, require_edition_for_mode
 from app.schemas.sensitive_word import (
     SensitiveWordCreate, SensitiveWordResponse, SensitiveRecordResponse,
     SensitiveWordBulkImport, CategoryCreate, CategoryResponse, CategoriesResponse
@@ -16,7 +16,8 @@ from app.services.sensitive_word import (
 )
 from app.models.sensitive_word import SENSITIVE_WORD_CATEGORIES, SENSITIVE_WORD_SUBCATEGORIES
 
-router = APIRouter()
+# 在路由层挂载版别运行模式依赖，确保仅在当前模式的版别下进行管理操作
+router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
 
 @router.post("/sensitive-words", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_sensitive_word(

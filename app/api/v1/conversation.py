@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, require_edition_for_mode
 from app.schemas.conversation import MessageCreate, ConversationResponse
 from app.services.conversation import create_conversation, get_conversation, add_message, get_user_conversations
 
-router = APIRouter()
+# 在路由层挂载版别运行模式依赖，限制仅允许当前模式的用户访问
+router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_new_conversation(current_user: dict = Depends(get_current_active_user)):

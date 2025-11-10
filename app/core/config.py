@@ -1,5 +1,6 @@
 import os
-from pydantic import BaseSettings
+# Pydantic v2 中 BaseSettings 已迁移到 pydantic-settings
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -22,5 +23,10 @@ class Settings(BaseSettings):
     # Ollama配置
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama2")
+
+    # 应用运行模式开关：仅运行教育版或企业版之一
+    # 允许的值："edu" / "biz"；若未设置则默认使用 "edu"
+    # 注意：不再提供混合模式（mixed），如需混合请显式设置并在依赖中放行
+    APP_MODE: str = os.getenv("APP_MODE", "edu")
 
 settings = Settings()
