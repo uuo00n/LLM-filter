@@ -92,6 +92,10 @@ python init_db.py
 - 管理员：admin / admin123
 - 普通用户：user / user123
 
+重要说明：
+- 该脚本会清空 DB_NAME 指定库中的“所有集合”（drop collection），随后再写入演示数据，仅用于本地开发与测试，请勿在生产环境运行。
+- 版别选择通过环境变量 APP_MODE 控制（可选值：edu 或 biz，默认 edu）。脚本会仅插入当前模式对应的测试用户，路由层也会基于该模式限制可访问的版别。
+
 7) 启动服务
 ```bash
 uvicorn app.main:app --reload
@@ -104,6 +108,7 @@ uvicorn app.main:app --reload
 与代码一致，配置由 `app/core/config.py` 读取：
 - MONGODB_URL：MongoDB 连接串，默认 `mongodb://localhost:27017`
 - DB_NAME：数据库名，默认 `llm_filter_db`
+- APP_MODE：应用运行版别，`edu` 或 `biz`，默认 `edu`（路由依赖会限制仅允许该版别访问）
 - SECRET_KEY：JWT 签名密钥（必须为强随机）
 - ALGORITHM：JWT 算法，默认 `HS256`
 - ACCESS_TOKEN_EXPIRE_MINUTES：访问令牌过期时间（分钟），默认 `30`
@@ -175,6 +180,8 @@ curl -X POST "http://localhost:8000/api/v1/conversations/<ID>/messages" \
   - PUT `/api/v1/admin/categories/{category_name}` 更新分类子分类
   - DELETE `/api/v1/admin/categories/{category_name}` 删除分类
 
+说明：部分路由挂载了基于 APP_MODE 的版别限制依赖（require_edition_for_mode），仅允许与当前 APP_MODE 一致的用户访问。
+
 CSV 导入示例（文件需包含表头：word,category,subcategory,severity）：
 ```bash
 curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
@@ -188,6 +195,10 @@ curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
      -F "file=@/path/to/words.json"
 # words.json 示例：[ {"word":"赌博","category":"违法活动","subcategory":"赌博","severity":3} ]
 ```
+
+### 仪表盘（/dashboard）
+- GET `/api/v1/dashboard/summary` 根据角色等级与版别返回个性化首页模块，最低 1 级即可访问；随角色等级与版别增加返回更多模块。
+- 也挂载了版别限制依赖（require_edition_for_mode），保证仅允许后端设置的版别访问。
 
 ---
 
@@ -215,12 +226,24 @@ llm-filter/
 - 支持主分类与子分类，并记录严重程度（1-5，5 最严重）
 - 管理员可通过导入/批量添加快速构建词库
 
+敏感词来源与刷新机制：
+- 词库存放在 MongoDB 的 `sensitive_words` 集合中。
+- 应用启动时会执行 `load_sensitive_words()`，将数据库中的词库加载到内存的 Trie，用于高效匹配。
+- 通过管理员接口新增/删除/批量导入敏感词后，服务会自动调用 `load_sensitive_words()` 进行“热更新”，无需重启即可生效。
+
 ---
 
 ## 开发与部署提示
 - CORS 已默认允许全部来源，生产环境请限制 `allow_origins`
 - 开发模式使用 `--reload`；生产建议使用 `uvicorn`/`gunicorn` + 进程管理（如 `supervisor`/`systemd`）
 - 日志与安全：请务必使用强随机 `SECRET_KEY` 并妥善保管 `.env`
+
+角色与权限等级：
+- user：1（学生/员工）
+- manager：2（班主任/组长/二级部门管理员）
+- leader：3（中层干部/部门负责人/一级部门管理员）
+- master：4（校长/集团高管/总负责人）
+- administrator：5（系统管理员/运维超管；兼容历史名 `admin`）
 
 ---
 
@@ -236,6 +259,10 @@ llm-filter/
 3) Ollama 连接失败？
 - 检查 `OLLAMA_BASE_URL` 是否指向可用服务：`curl http://localhost:11434/api/tags`
 - 确保已拉取并可用的模型（如 `ollama pull llama2`）
+
+4) 运行 `init_db.py` 是否会清空数据库？
+- 会清空 `DB_NAME` 指定库内的所有集合（drop collection），随后再写入演示数据。仅用于开发测试，请勿在生产环境运行。
+- 如需保留数据，可自行修改脚本，跳过清空步骤或仅清空指定集合；或在 `.env` 中设置不同的 `DB_NAME` 指向测试库。
 
 ---
 
