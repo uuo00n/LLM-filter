@@ -326,6 +326,9 @@ async def init_db():
     await db.sensitive_records.insert_many(sensitive_records)
     print(f"已创建敏感词记录集合并添加 {len(sensitive_records)} 条记录")
     
+    # 学校业务数据：学生/班级/课表/考勤/操行/请假/指示
+    await seed_school_data(db, mode)
+    
     print("\n数据库初始化完成！")
     print("\n测试账号 (模式: %s):" % mode)
     if mode == "edu":
@@ -334,6 +337,193 @@ async def init_db():
     else:
         print("企业版管理员: administrator_biz / adminbiz123  (role=administrator, edition=biz)")
         print("企业版普通用户: user_biz / userbiz123  (role=user, edition=biz)")
+
+async def seed_school_data(db, mode: str):
+    if mode != "edu":
+        print("当前为企业版模式，跳过学校业务数据初始化")
+        return
+
+    # 索引
+    await db.students.create_index("student_id", unique=True)
+    await db.students.create_index("class_id")
+    await db.classes.create_index("class_id", unique=True)
+    await db.classes.create_index("head_teacher_id")
+    await db.schedules.create_index([("classes.class_id", 1), ("weekday", 1), ("period", 1)])
+    await db.schedules.create_index("lesson_id", unique=True)
+    await db.attendance.create_index([("lesson_id", 1), ("student_id", 1)])
+    await db.attendance.create_index("date")
+    await db.conduct.create_index([("student_id", 1), ("date", 1)])
+    await db.leaves.create_index([("class_id", 1), ("from_date", 1)])
+    await db.leaves.create_index("student_id")
+    await db.directives.create_index([("created_at", -1)])
+    await db.directives.create_index("level")
+
+    # 选择一个班主任与任课教师
+    head_teacher = await db.users.find_one({"role": "manager", "edition": mode})
+    teacher_a = await db.users.find_one({"role": "leader", "edition": mode})
+    teacher_b = head_teacher
+
+    # 班级
+    classes_docs = [
+        {
+            "class_id": "SW22-1",
+            "name": "22级软件技术1班",
+            "grade": "22级",
+            "major": "软件技术",
+            "head_teacher_id": head_teacher["_id"] if head_teacher else None,
+            "students_count": 0,
+        },
+        {
+            "class_id": "SW22-2",
+            "name": "22级软件技术2班",
+            "grade": "22级",
+            "major": "软件技术",
+            "head_teacher_id": head_teacher["_id"] if head_teacher else None,
+            "students_count": 0,
+        },
+    ]
+    await db.classes.insert_many(classes_docs)
+
+    # 学生
+    def gen_students(class_id: str, count: int):
+        docs = []
+        for i in range(1, count + 1):
+            sid = f"{class_id}-{i:03d}"
+            docs.append({
+                "student_id": sid,
+                "name": f"{class_id}学生{i:03d}",
+                "gender": "男" if i % 2 == 1 else "女",
+                "grade": "22级",
+                "major": "软件技术",
+                "class_id": class_id,
+                "status": "在读",
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            })
+        return docs
+
+    students_docs = gen_students("SW22-1", 12) + gen_students("SW22-2", 12)
+    await db.students.insert_many(students_docs)
+
+    # 更新班级人数
+    counts = {
+        "SW22-1": 12,
+        "SW22-2": 12,
+    }
+    for cid, c in counts.items():
+        await db.classes.update_one({"class_id": cid}, {"$set": {"students_count": c}})
+
+    # 课表（周一～周五，每天 4 节），多班共享同一节次，按班级分别给出教室
+    courses = ["C语言基础", "数据库原理", "Web前端", "Java", "软件测试", "数据结构"]
+    locations_a = ["A-101", "A-102", "A-201", "A-202"]
+    locations_b = ["B-101", "B-102", "B-201", "B-202"]
+
+    schedules_docs = []
+    idx = 0
+    for weekday in range(1, 6):
+        for period in range(1, 5):
+            course = courses[idx % len(courses)]
+            loc_a = locations_a[idx % len(locations_a)]
+            loc_b = locations_b[idx % len(locations_b)]
+            teacher_id = (teacher_a or head_teacher)["_id"] if (teacher_a or head_teacher) else None
+            lesson_id = f"W{weekday}-P{period}"
+            schedules_docs.append({
+                "lesson_id": lesson_id,
+                "weekday": weekday,
+                "period": period,
+                "course_name": course,
+                "teacher_id": teacher_id,
+                "start_time": f"{8 + period - 1}:00",
+                "end_time": f"{8 + period}:40",
+                "week_range": "1-18",
+                "classes": [
+                    {"class_id": "SW22-1", "location": loc_a},
+                    {"class_id": "SW22-2", "location": loc_b},
+                ],
+                "created_at": datetime.now(),
+            })
+            idx += 1
+
+    await db.schedules.insert_many(schedules_docs)
+
+    # 今日考勤样例
+    today = datetime.now().date().isoformat()
+    sample_attendance = []
+    for i in range(1, 6):
+        sid = f"SW22-1-{i:03d}"
+        sample_attendance.append({
+            "lesson_id": "W1-P1",
+            "class_id": "SW22-1",
+            "student_id": sid,
+            "date": today,
+            "status": "出勤" if i % 4 != 0 else "请假",
+        })
+    for i in range(1, 6):
+        sid = f"SW22-2-{i:03d}"
+        sample_attendance.append({
+            "lesson_id": "W1-P1",
+            "class_id": "SW22-2",
+            "student_id": sid,
+            "date": today,
+            "status": "出勤" if i % 5 != 0 else "缺勤",
+        })
+    await db.attendance.insert_many(sample_attendance)
+
+    # 操行样例
+    conduct_docs = [
+        {
+            "student_id": "SW22-1-001",
+            "date": today,
+            "metrics": {"德育": 90, "纪律": 88, "卫生": 92},
+            "teacher_comment": "课堂表现积极",
+            "head_teacher_comment": "遵守纪律，乐于助人",
+            "score": 90,
+        },
+        {
+            "student_id": "SW22-2-001",
+            "date": today,
+            "metrics": {"德育": 85, "纪律": 80, "卫生": 86},
+            "teacher_comment": "需要提高专注度",
+            "head_teacher_comment": "总体良好",
+            "score": 84,
+        },
+    ]
+    await db.conduct.insert_many(conduct_docs)
+
+    # 请假样例
+    leaves_docs = [
+        {
+            "student_id": "SW22-1-004",
+            "class_id": "SW22-1",
+            "from_date": today,
+            "to_date": today,
+            "reason": "生病",
+            "approved_by": head_teacher["_id"] if head_teacher else None,
+            "status": "已批准",
+        },
+    ]
+    await db.leaves.insert_many(leaves_docs)
+
+    # 指示样例
+    directives_docs = [
+        {
+            "level": "department",
+            "content": "本周开展课堂纪律专项检查",
+            "created_at": datetime.now(),
+            "issuer_id": teacher_b["_id"] if teacher_b else None,
+            "targets": ["软件技术系"],
+        },
+        {
+            "level": "campus",
+            "content": "期中考试安排与安全教育",
+            "created_at": datetime.now(),
+            "issuer_id": teacher_a["_id"] if teacher_a else None,
+            "targets": [],
+        },
+    ]
+    await db.directives.insert_many(directives_docs)
+
+    print("学校业务数据初始化完成：students/classes/schedules/attendance/conduct/leaves/directives")
 
 if __name__ == "__main__":
     asyncio.run(init_db())
