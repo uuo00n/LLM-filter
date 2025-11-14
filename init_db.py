@@ -346,6 +346,7 @@ async def seed_school_data(db, mode: str):
     # 索引
     await db.students.create_index("student_id", unique=True)
     await db.students.create_index("class_id")
+    await db.students.create_index("user_id", unique=True, sparse=True)
     await db.classes.create_index("class_id", unique=True)
     await db.classes.create_index("head_teacher_id")
     await db.schedules.create_index([("classes.class_id", 1), ("weekday", 1), ("period", 1)])

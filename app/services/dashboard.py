@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Any
 from bson import ObjectId
+from fastapi import HTTPException
 from app.db.mongodb import db
 
 async def _today_iso() -> str:
@@ -23,12 +24,12 @@ async def _get_student_by_user(user_id: ObjectId) -> Dict[str, Any]:
     s = await db.db.students.find_one({"user_id": user_id})
     if s:
         return s
-    return await db.db.students.find_one({})
+    raise HTTPException(status_code=404, detail="当前用户未绑定学生")
 
 async def student_today_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
     today = await _today_iso()
     weekday = await _weekday()
-    student = await _get_student_by_user(ObjectId(current_user["_id"]))
+    student = await _get_student_by_user(current_user["_id"])
     class_id = student.get("class_id") if student else None
 
     schedules: List[Dict[str, Any]] = []
@@ -56,7 +57,16 @@ async def student_today_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
                 "status": a.get("status"),
             })
 
-    conduct = await db.db.conduct.find_one({"student_id": student.get("student_id") if student else None, "date": today})
+    conduct_doc = await db.db.conduct.find_one({"student_id": student.get("student_id") if student else None, "date": today})
+    conduct = {}
+    if conduct_doc:
+        conduct = {
+            "date": conduct_doc.get("date"),
+            "metrics": conduct_doc.get("metrics"),
+            "teacher_comment": conduct_doc.get("teacher_comment"),
+            "head_teacher_comment": conduct_doc.get("head_teacher_comment"),
+            "score": conduct_doc.get("score"),
+        }
 
     return {
         "student": {
@@ -66,7 +76,7 @@ async def student_today_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
         },
         "today_schedule": schedules,
         "today_attendance": attendance,
-        "today_conduct": conduct or {},
+        "today_conduct": conduct,
     }
 
 async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
