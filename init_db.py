@@ -403,6 +403,9 @@ async def seed_school_data(db, mode: str):
         return docs
 
     students_docs = gen_students("SW22-1", 12) + gen_students("SW22-2", 12)
+    sample_user = await db.users.find_one({"username": "user", "edition": mode})
+    if sample_user and students_docs:
+        students_docs[0]["user_id"] = sample_user["_id"]
     await db.students.insert_many(students_docs)
 
     # 更新班级人数
