@@ -17,6 +17,16 @@ MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "llm_filter_db")
 # 运行模式：仅运行教育版或企业版之一（不混合）
 APP_MODE = (os.getenv("APP_MODE", "edu") or "edu").lower()
+ADMIN_EDU_PASSWORD = os.getenv("ADMIN_EDU_PASSWORD", "admin123")
+USER_EDU_PASSWORD = os.getenv("USER_EDU_PASSWORD", "user123")
+ADMIN_BIZ_PASSWORD = os.getenv("ADMIN_BIZ_PASSWORD", "adminbiz123")
+USER_BIZ_PASSWORD = os.getenv("USER_BIZ_PASSWORD", "userbiz123")
+MANAGER_EDU_PASSWORD = os.getenv("MANAGER_EDU_PASSWORD", "manager123")
+LEADER_EDU_PASSWORD = os.getenv("LEADER_EDU_PASSWORD", "leader123")
+MASTER_EDU_PASSWORD = os.getenv("MASTER_EDU_PASSWORD", "master123")
+MANAGER_BIZ_PASSWORD = os.getenv("MANAGER_BIZ_PASSWORD", "managerbiz123")
+LEADER_BIZ_PASSWORD = os.getenv("LEADER_BIZ_PASSWORD", "leaderbiz123")
+MASTER_BIZ_PASSWORD = os.getenv("MASTER_BIZ_PASSWORD", "masterbiz123")
 
 async def init_db():
     # 连接到MongoDB
@@ -41,7 +51,7 @@ async def init_db():
             "_id": admin_id,
             "username": "admin",
             "email": "admin@example.com",
-            "hashed_password": pwd_context.hash("admin123"),
+            "hashed_password": pwd_context.hash(ADMIN_EDU_PASSWORD),
             "role": "administrator",   # 统一使用标准角色名，兼容旧数据中的 "admin"
             "role_level": 5,            # 映射到最高等级
             "edition": "edu",          # 默认教育版
@@ -53,7 +63,7 @@ async def init_db():
             "_id": user_id,
             "username": "user",
             "email": "user@example.com",
-            "hashed_password": pwd_context.hash("user123"),
+            "hashed_password": pwd_context.hash(USER_EDU_PASSWORD),
             "role": "user",
             "role_level": 1,
             "edition": "edu",
@@ -65,7 +75,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "manager_edu",
             "email": "manager_edu@example.com",
-            "hashed_password": pwd_context.hash("manager123"),
+            "hashed_password": pwd_context.hash(MANAGER_EDU_PASSWORD),
             "role": "manager",
             "role_level": 2,
             "edition": "edu",
@@ -76,7 +86,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "leader_edu",
             "email": "leader_edu@example.com",
-            "hashed_password": pwd_context.hash("leader123"),
+            "hashed_password": pwd_context.hash(LEADER_EDU_PASSWORD),
             "role": "leader",
             "role_level": 3,
             "edition": "edu",
@@ -87,7 +97,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "master_edu",
             "email": "master_edu@example.com",
-            "hashed_password": pwd_context.hash("master123"),
+            "hashed_password": pwd_context.hash(MASTER_EDU_PASSWORD),
             "role": "master",
             "role_level": 4,
             "edition": "edu",
@@ -99,7 +109,7 @@ async def init_db():
             "_id": user_biz_id,
             "username": "user_biz",
             "email": "user_biz@example.com",
-            "hashed_password": pwd_context.hash("userbiz123"),
+            "hashed_password": pwd_context.hash(USER_BIZ_PASSWORD),
             "role": "user",
             "role_level": 1,
             "edition": "biz",
@@ -110,7 +120,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "manager_biz",
             "email": "manager_biz@example.com",
-            "hashed_password": pwd_context.hash("managerbiz123"),
+            "hashed_password": pwd_context.hash(MANAGER_BIZ_PASSWORD),
             "role": "manager",
             "role_level": 2,
             "edition": "biz",
@@ -121,7 +131,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "leader_biz",
             "email": "leader_biz@example.com",
-            "hashed_password": pwd_context.hash("leaderbiz123"),
+            "hashed_password": pwd_context.hash(LEADER_BIZ_PASSWORD),
             "role": "leader",
             "role_level": 3,
             "edition": "biz",
@@ -132,7 +142,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "master_biz",
             "email": "master_biz@example.com",
-            "hashed_password": pwd_context.hash("masterbiz123"),
+            "hashed_password": pwd_context.hash(MASTER_BIZ_PASSWORD),
             "role": "master",
             "role_level": 4,
             "edition": "biz",
@@ -143,7 +153,7 @@ async def init_db():
             "_id": ObjectId(),
             "username": "administrator_biz",
             "email": "administrator_biz@example.com",
-            "hashed_password": pwd_context.hash("adminbiz123"),
+            "hashed_password": pwd_context.hash(ADMIN_BIZ_PASSWORD),
             "role": "administrator",
             "role_level": 5,
             "edition": "biz",

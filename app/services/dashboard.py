@@ -83,6 +83,7 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     today = await _today_iso()
     weekday = await _weekday()
     period = await _current_period()
+    current_lesson_id = f"W{weekday}-P{period}"
     uid = ObjectId(current_user["_id"])
     classes = []
     cursor = db.db.classes.find({"head_teacher_id": uid})
@@ -108,7 +109,12 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     rates: List[Dict[str, Any]] = []
     for c in classes:
         total = c.get("students_count", 0)
-        present = await db.db.attendance.count_documents({"class_id": c.get("class_id"), "date": today, "status": "出勤"})
+        present = await db.db.attendance.count_documents({
+            "class_id": c.get("class_id"),
+            "date": today,
+            "lesson_id": current_lesson_id,
+            "status": "出勤",
+        })
         rate = (present / total) if total else 0
         rates.append({"class_id": c.get("class_id"), "present": present, "total": total, "rate": rate})
 
