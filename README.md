@@ -9,6 +9,8 @@
 - 对话历史：按用户保存会话与消息
 - 敏感词管理：管理员可增删改查、批量导入、按分类/严重程度筛选
 - 敏感记录追踪：记录触发详情与严重等级
+- 实体化数据模型：账户（users）与人物（persons）分离，学生/教师实体（students/teachers）统一通过绑定（bindings）关联
+- 角色看板：按角色等级与实体身份提供学生/班主任/中层/校级数据接口
 
 ---
 
@@ -50,6 +52,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 # Ollama配置
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama2
+APP_MODE=edu
+# 初始密码（可选，未设置时使用默认值）：
+ADMIN_EDU_PASSWORD=admin123
+USER_EDU_PASSWORD=user123
+MANAGER_EDU_PASSWORD=manager123
+LEADER_EDU_PASSWORD=leader123
+MASTER_EDU_PASSWORD=master123
+# 企业版对应：ADMIN_BIZ_PASSWORD/USER_BIZ_PASSWORD/MANAGER_BIZ_PASSWORD/LEADER_BIZ_PASSWORD/MASTER_BIZ_PASSWORD
 ```
 生成强随机密钥（二选一）：
 ```bash
@@ -84,13 +94,18 @@ curl http://localhost:11434/api/tags
 ollama pull llama2
 ```
 
-6) 初始化数据库（创建演示数据与默认账户）
+6) 初始化数据库（创建演示数据与默认账户与实体化数据）
 ```bash
 python init_db.py
 ```
 默认测试账号：
 - 管理员：admin / admin123
 - 普通用户：user / user123
+
+实体化初始化内容：
+- 生成 students/classes/schedules/attendance/conduct/leaves/directives
+- 生成 persons（为每位学生生成人物档案）与 teachers（示例教师/班主任/干部）
+- 生成 bindings（账号与人物主绑定），并清理旧字段与索引（students.user_id/classes.head_teacher_id/schedules.teacher_id）
 
 重要说明：
 - 该脚本会清空 DB_NAME 指定库中的“所有集合”（drop collection），随后再写入演示数据，仅用于本地开发与测试，请勿在生产环境运行。
@@ -196,8 +211,31 @@ curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
 # words.json 示例：[ {"word":"赌博","category":"违法活动","subcategory":"赌博","severity":3} ]
 ```
 
-### 仪表盘说明
-后端不再提供 `/dashboard` 接口，仪表盘由前端实现并直接对接相应数据源或后端业务接口（例如出勤、课表、请假、指示等）。
+### 仪表盘（/dashboard）
+- GET `/api/v1/dashboard/student/today` 学生端：今日个人课表、出勤与操行（需角色≥1且主绑定为学生）
+- GET `/api/v1/dashboard/homeroom/current` 班主任端：当前节次课程与地点、节次出勤率、请假、部门指示（需角色≥2且主绑定为教师）
+- GET `/api/v1/dashboard/department/overview` 中层端：教师节次出勤率、学生出勤聚合、异常班级、近期指示（需角色≥3）
+- GET `/api/v1/dashboard/campus/overview` 校级端：校园整体总览（需角色≥5）
+
+说明：路由统一挂载版别限制依赖 `require_edition_for_mode()`，学生/班主任端同时挂载实体绑定依赖 `require_binding(student|teacher)`。
+
+### 人员与实体管理
+- 人物档案（/persons）
+  - POST `/api/v1/persons/bulk` 批量导入人物档案（`person_id/name/type`）
+  - GET `/api/v1/persons` 列出人物档案
+- 教师实体（/teachers）
+  - POST `/api/v1/teachers/bulk` 批量导入教师实体（`person_id/teacher_id/department/roles`，可选 `account_id`）
+  - GET `/api/v1/teachers` 列出教师实体
+- 绑定管理（/bindings）
+  - POST `/api/v1/bindings` 创建主绑定（`type=student|teacher`）
+  - DELETE `/api/v1/bindings/{person_id}` 删除绑定
+  - GET `/api/v1/bindings/me` 查询当前账号主绑定
+- 班级管理（/classes）
+  - PUT `/api/v1/classes/{class_id}/head-teacher` 设置 `head_teacher_person_id`
+  - GET `/api/v1/classes` 列出班级
+- 课表管理（/schedules）
+  - PUT `/api/v1/schedules/assign-teacher` 设置 `teacher_person_id`
+  - GET `/api/v1/schedules` 列出共享节次（含各班 `location`）
 
 ---
 
@@ -208,6 +246,12 @@ llm-filter/
 ├── app/                    # 应用主目录
 │   ├── api/                # API 路由
 │   │   └── v1/             # API 版本
+│   │       ├── dashboard.py     # 仪表盘数据接口（按角色）
+│   │       ├── bindings.py      # 账号与人物绑定管理
+│   │       ├── persons.py       # 人物档案管理
+│   │       ├── teachers.py      # 教师实体管理
+│   │       ├── classes.py       # 班级管理（班主任人物）
+│   │       ├── schedules.py     # 课表管理（共享节次/教师人物）
 │   ├── core/               # 核心配置
 │   ├── db/                 # 数据库连接
 │   ├── models/             # 数据模型
@@ -219,6 +263,59 @@ llm-filter/
 ```
 
 ---
+
+## MongoDB 集合说明
+- `users`：账户与认证信息，用于登录与权限控制；字段包含 `username/email/hashed_password/role/role_level/edition/created_at/updated_at`。
+- `persons`：人物档案的统一身份标识；字段包含 `person_id/name/type`，供学生/教师等实体引用。
+- `bindings`：账号与人物的主绑定关系；字段包含 `account_id/person_id/type/primary`，决定账号当前实体身份（学生/教师）。
+- `students`：学生实体信息；字段包含 `student_id/name/gender/grade/major/class_id/status/person_id/created_at/updated_at`。
+- `teachers`：教师实体信息；字段包含 `teacher_id/department/roles/account_id/person_id`，`roles` 示例：`teacher/homeroom/cadre`。
+- `classes`：班级基础信息；字段包含 `class_id/name/grade/major/students_count/head_teacher_person_id`。
+- `schedules`：共享节次与课程安排；字段包含 `lesson_id/weekday/period/course_name/teacher_person_id/start_time/end_time/week_range/classes[class_id/location]`。
+- `attendance`：学生出勤记录；字段包含 `lesson_id/class_id/student_id/date/status`。
+- `conduct`：操行与德育评分；字段包含 `student_id/date/metrics{...}/teacher_comment/head_teacher_comment/score`。
+- `leaves`：学生请假记录；字段包含 `student_id/class_id/from_date/to_date/reason/approved_by/status`。
+- `directives`：部门/校园指示公告；字段包含 `level/content/issuer_id/targets/created_at`，`level` 示例：`department/campus`。
+- `conversations`：用户对话与消息历史；字段包含 `user_id/messages[role/content/timestamp/contains_sensitive_words/sensitive_words_found]/created_at/updated_at`。
+- `sensitive_words`：敏感词词库；字段包含 `word/category/subcategory/severity/created_at/updated_at`，用于构建内存 Trie。
+- `sensitive_records`：敏感词触发审计日志；字段包含 `user_id/conversation_id/message_content/sensitive_words_found/highest_severity/timestamp`。
+
+说明与关系要点：
+- 账户（`users`）与人物（`persons`）分离，通过 `bindings` 形成账号的主实体身份。
+- 学生（`students`）隶属班级（`classes`），课程排程（`schedules`）由教师人物负责并面向多个班级。
+- 出勤（`attendance`）、操行（`conduct`）、请假（`leaves`）与指示（`directives`）共同支撑角色仪表盘的数据聚合。
+
+### 集合读写与路由映射
+- `users`：写 `register`/初始化；读认证与会话用户；路由 `/api/v1/auth/*`
+- `persons`：写 批量导入与初始化；读 列表与绑定引用；路由 `/api/v1/persons*`
+- `bindings`：写 创建/删除主绑定；读 当前账号主绑定与依赖校验；路由 `/api/v1/bindings*`
+- `students`：写 初始化与历史字段清理；读 学生实体/统计；路由 学生相关绑定/自查
+- `teachers`：写 批量导入与初始化；读 教师实体；路由 `/api/v1/teachers*`
+- `classes`：写 初始化与设班主任；读 班级列表/统计；路由 `/api/v1/classes*`
+- `schedules`：写 初始化与设授课教师；读 学生日程/教师节次；路由 `/api/v1/schedules*`
+- `attendance`：写 初始化出勤样例；读 学生今日出勤/节次出勤率；路由 仪表盘聚合
+- `conduct`：写 初始化操行样例；读 学生今日操行；路由 仪表盘聚合
+- `leaves`：写 初始化请假样例；读 今日/概览请假统计；路由 仪表盘聚合
+- `directives`：写 初始化部门/校园指示；读 部门/校园指示列表；路由 仪表盘聚合
+- `conversations`：写 新建会话/追加消息；读 用户会话/详情；路由 `/api/v1/conversations*`
+- `sensitive_words`：写 管理增删/批量导入；读 加载Trie/查询；路由 `/api/v1/admin/sensitive-words*`
+- `sensitive_records`：写 命中时审计记录；读 管理员查询记录；路由 `/api/v1/admin/sensitive-records`
+
+#### 实现位置参考（按集合）
+- `users`：`app/services/auth.py`、`app/api/v1/auth.py`、`init_db.py`
+- `bindings`：`app/services/bindings.py`、`app/api/v1/bindings.py`、`app/api/deps.py`、`app/services/dashboard.py`
+- `persons`：`app/api/v1/persons.py`、`init_db.py`
+- `students`：`app/services/student_binding.py`、`app/services/dashboard.py`、`app/api/v1/students.py`、`init_db.py`
+- `teachers`：`app/api/v1/teachers.py`、`app/services/dashboard.py`、`init_db.py`
+- `classes`：`app/api/v1/classes.py`、`app/services/dashboard.py`、`init_db.py`
+- `schedules`：`app/api/v1/schedules.py`、`app/services/dashboard.py`、`init_db.py`
+- `attendance`：`app/services/dashboard.py`、`init_db.py`
+- `conduct`：`app/services/dashboard.py`、`init_db.py`
+- `leaves`：`app/services/dashboard.py`、`init_db.py`
+- `directives`：`app/services/dashboard.py`、`init_db.py`
+- `conversations`：`app/services/conversation.py`、`app/api/v1/conversations.py`、`init_db.py`
+- `sensitive_words`：`app/services/sensitive_word.py`、`app/utils/sensitive_word_filter.py`、`app/api/v1/admin.py`、`init_db.py`
+- `sensitive_records`：`app/services/sensitive_word.py`、`app/services/conversation.py`、`app/api/v1/admin.py`、`init_db.py`
 
 ## 敏感词过滤说明
 - 使用 Trie（字典树）加载敏感词并检测文本，返回是否命中与命中的词列表
