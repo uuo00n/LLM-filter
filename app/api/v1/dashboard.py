@@ -36,7 +36,7 @@ async def department(current_user: dict = Depends(require_role(3))):
 @router.get(
     "/campus/overview",
     summary="校级端：校园整体总览",
-    description="需角色等级≥5；返回学生总数、今日出勤、请假与指示数量等宏观数据。"
+    description="需角色等级≥4；返回学生总数、今日出勤、请假与指示数量等宏观数据。"
 )
-async def campus(current_user: dict = Depends(require_role(5))):
+async def campus(current_user: dict = Depends(require_role(4))):
     return await campus_overview(current_user)
