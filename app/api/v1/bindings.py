@@ -41,6 +41,7 @@ async def me(current_user: dict = Depends(get_current_active_user)):
     b = await get_binding_by_account(str(current_user["_id"]))
     if not b:
         raise HTTPException(status_code=404, detail="未绑定人物")
+    b["_id"] = str(b["_id"])  
     b["account_id"] = str(b["account_id"])  
     b["person_id"] = str(b["person_id"])  
     return b
