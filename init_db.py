@@ -624,5 +624,18 @@ async def seed_identity_data(db, mode: str):
     await db.schedules.update_many({}, {"$unset": {"teacher_id": ""}})
     await db.students.update_many({}, {"$unset": {"user_id": ""}})
 
+    try:
+        await db.classes.drop_index("head_teacher_id_1")
+    except Exception:
+        pass
+    try:
+        await db.schedules.drop_index("teacher_id_1")
+    except Exception:
+        pass
+    try:
+        await db.students.drop_index("user_id_1")
+    except Exception:
+        pass
+
 if __name__ == "__main__":
     asyncio.run(init_db())

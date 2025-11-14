@@ -14,7 +14,11 @@ class TeacherCreate(BaseModel):
     roles: List[str]
     account_id: Optional[str] = None
 
-@router.post("/bulk")
+@router.post(
+    "/bulk",
+    summary="批量导入教师实体",
+    description="导入教师实体（person_id/teacher_id/department/roles），可选绑定 account_id。",
+)
 async def bulk_create(teachers: List[TeacherCreate], current_user: dict = Depends(require_role(3))):
     docs = []
     for t in teachers:
@@ -32,7 +36,11 @@ async def bulk_create(teachers: List[TeacherCreate], current_user: dict = Depend
     await db.db.teachers.insert_many(docs)
     return {"inserted": len(docs)}
 
-@router.get("")
+@router.get(
+    "",
+    summary="列出教师实体",
+    description="按 teacher_id 排序列出所有教师实体（包含 person_id/account_id）。",
+)
 async def list_teachers(current_user: dict = Depends(require_role(3))):
     res = []
     cursor = db.db.teachers.find({}).sort("teacher_id", 1)

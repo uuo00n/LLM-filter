@@ -10,21 +10,33 @@ class BindingPayload(BaseModel):
     type: str
     primary: bool = True
 
-@router.post("")
+@router.post(
+    "",
+    summary="创建主绑定",
+    description="为当前账号创建人物主绑定（student/teacher），同类型主绑定唯一。",
+)
 async def bind(payload: BindingPayload, current_user: dict = Depends(require_role(2))):
     ok = await create_binding(str(current_user["_id"]), payload.person_id, payload.type, payload.primary)
     if not ok:
         raise HTTPException(status_code=400, detail="主绑定已存在或参数错误")
     return {"success": True}
 
-@router.delete("/{person_id}")
+@router.delete(
+    "/{person_id}",
+    summary="删除绑定",
+    description="删除当前账号与指定人物的绑定。",
+)
 async def unbind(person_id: str, current_user: dict = Depends(require_role(2))):
     ok = await delete_binding(str(current_user["_id"]), person_id)
     if not ok:
         raise HTTPException(status_code=404, detail="未找到绑定")
     return {"success": True}
 
-@router.get("/me")
+@router.get(
+    "/me",
+    summary="查询当前账号的主绑定",
+    description="返回当前账号的主绑定信息（account_id/person_id/type/primary）。",
+)
 async def me(current_user: dict = Depends(get_current_active_user)):
     b = await get_binding_by_account(str(current_user["_id"]))
     if not b:

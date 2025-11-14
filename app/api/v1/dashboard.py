@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api.deps import require_edition_for_mode, require_role
+from app.api.deps import require_edition_for_mode, require_role, require_binding
 from app.services.dashboard import (
     student_today_summary,
     homeroom_current_summary,
@@ -9,18 +9,34 @@ from app.services.dashboard import (
 
 router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
 
-@router.get("/student/today")
-async def student_today(current_user: dict = Depends(require_role(1))):
+@router.get(
+    "/student/today",
+    summary="学生端：今日个人课表、出勤与操行",
+    description="需角色等级≥1且主绑定为学生；返回当天课表（共享节次按班级定位教室）、今日出勤记录与操行评语。"
+)
+async def student_today(current_user: dict = Depends(require_role(1)), _b: dict = Depends(require_binding("student"))):
     return await student_today_summary(current_user)
 
-@router.get("/homeroom/current")
-async def homeroom_current(current_user: dict = Depends(require_role(2))):
+@router.get(
+    "/homeroom/current",
+    summary="班主任端：当前节次课程与地点、出勤率、请假、指示",
+    description="需角色等级≥2且主绑定为教师；按 head_teacher_person_id 定位所辖班，统计当前节次的课程与地点、节次出勤率、今日请假与部门指示。"
+)
+async def homeroom_current(current_user: dict = Depends(require_role(2)), _b: dict = Depends(require_binding("teacher"))):
     return await homeroom_current_summary(current_user)
 
-@router.get("/department/overview")
+@router.get(
+    "/department/overview",
+    summary="中层端：教师节次出勤率、学生出勤、异常班级、指示",
+    description="需角色等级≥3；按今日工作日统计每位教师的节次出勤率、全校学生出勤聚合、异常班级（缺勤+请假占比>0.3）与近期部门/校园指示。"
+)
 async def department(current_user: dict = Depends(require_role(3))):
     return await department_overview(current_user)
 
-@router.get("/campus/overview")
+@router.get(
+    "/campus/overview",
+    summary="校级端：校园整体总览",
+    description="需角色等级≥5；返回学生总数、今日出勤、请假与指示数量等宏观数据。"
+)
 async def campus(current_user: dict = Depends(require_role(5))):
     return await campus_overview(current_user)

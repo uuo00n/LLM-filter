@@ -9,7 +9,12 @@ from app.models.role import get_role_level
 
 router = APIRouter()
 
-@router.post("/register", response_model=UserResponse)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    summary="用户注册",
+    description="创建基础账户（默认教育版、角色等级为1）。",
+)
 async def register(user_data: UserCreate):
     """注册新用户"""
     # 检查用户名是否已存在
@@ -53,7 +58,12 @@ async def register(user_data: UserCreate):
         "edition": created_user.get("edition", "edu"),
     }
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    summary="用户登录",
+    description="使用表单登录（username/password），返回令牌与用户/绑定信息。",
+)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """用户登录"""
     user = await authenticate_user(form_data.username, form_data.password)

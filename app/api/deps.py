@@ -3,6 +3,8 @@ from fastapi.security import OAuth2PasswordBearer
 from app.services.auth import get_current_user
 from app.models.role import get_role_level
 from app.core.config import settings
+from bson import ObjectId
+from app.db.mongodb import db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -72,3 +74,11 @@ def require_edition_for_mode():
         return current_user
 
     return _edition_checker
+
+def require_binding(expected_type: str):
+    async def _binding_checker(current_user: dict = Depends(get_current_active_user)):
+        b = await db.db.bindings.find_one({"account_id": ObjectId(current_user["_id"]), "primary": True})
+        if not b or b.get("type") != expected_type:
+            raise HTTPException(status_code=403, detail="实体绑定不存在或类型不匹配")
+        return current_user
+    return _binding_checker

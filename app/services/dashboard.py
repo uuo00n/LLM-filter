@@ -104,7 +104,7 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     current_lesson_id = f"W{weekday}-P{period}"
     uid = ObjectId(current_user["_id"])
     classes = []
-    cursor = db.db.classes.find({"$or": [{"head_teacher_person_id": uid}, {"head_teacher_id": uid}]})
+    cursor = db.db.classes.find({"head_teacher_person_id": uid})
     async for c in cursor:
         classes.append(c)
     class_ids = [c.get("class_id") for c in classes]

@@ -12,7 +12,11 @@ class PersonCreate(BaseModel):
     name: str
     type: str = Field(pattern="^(student|teacher|staff)$")
 
-@router.post("/bulk")
+@router.post(
+    "/bulk",
+    summary="批量导入人物档案",
+    description="导入学生/教师/职员的基础人物信息（person_id/name/type）。",
+)
 async def bulk_create(persons: List[PersonCreate], current_user: dict = Depends(require_role(3))):
     docs = [{"person_id": p.person_id, "name": p.name, "type": p.type} for p in persons]
     if not docs:
@@ -20,7 +24,11 @@ async def bulk_create(persons: List[PersonCreate], current_user: dict = Depends(
     await db.db.persons.insert_many(docs)
     return {"inserted": len(docs)}
 
-@router.get("")
+@router.get(
+    "",
+    summary="列出人物档案",
+    description="按 person_id 排序列出所有人物档案。",
+)
 async def list_persons(current_user: dict = Depends(require_role(3))):
     res = []
     cursor = db.db.persons.find({}).sort("person_id", 1)
