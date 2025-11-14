@@ -31,8 +31,12 @@ async def bulk_create(persons: List[PersonCreate], current_user: dict = Depends(
 )
 async def list_persons(current_user: dict = Depends(require_role(3))):
     res = []
+    counts = {}
     cursor = db.db.persons.find({}).sort("person_id", 1)
     async for d in cursor:
         d["_id"] = str(d["_id"])  
         res.append(d)
-    return res
+        t = d.get("type")
+        if t:
+            counts[t] = counts.get(t, 0) + 1
+    return {"items": res, "counts_by_type": counts}
