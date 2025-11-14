@@ -17,3 +17,18 @@ class ConversationResponse(BaseModel):
     messages: List[MessageResponse]
     created_at: datetime
     updated_at: datetime
+
+class ConversationDocOut(BaseModel):
+    _id: str
+    user_id: Optional[str] = None
+    messages: List[MessageResponse]
+    created_at: datetime
+    updated_at: datetime
+
+class CreatedId(BaseModel):
+    id: str
+
+class MessageSendResult(BaseModel):
+    contains_sensitive_words: bool
+    sensitive_words_found: List[str]
+    assistant_response: str

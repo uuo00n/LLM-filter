@@ -1,24 +1,25 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
 from app.api.deps import get_current_active_user, require_edition_for_mode
-from app.schemas.conversation import MessageCreate, ConversationResponse
+from app.schemas.conversation import MessageCreate, ConversationDocOut, CreatedId, MessageSendResult
 from app.services.conversation import create_conversation, get_conversation, add_message, get_user_conversations
 
 # 在路由层挂载版别运行模式依赖，限制仅允许当前模式的用户访问
 router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=CreatedId)
 async def create_new_conversation(current_user: dict = Depends(get_current_active_user)):
     """创建新对话"""
     conversation_id = await create_conversation(str(current_user["_id"]))
     return {"id": conversation_id}
 
-@router.get("/", response_model=list)
+@router.get("/", response_model=List[ConversationDocOut])
 async def list_conversations(current_user: dict = Depends(get_current_active_user)):
     """获取用户的所有对话"""
     conversations = await get_user_conversations(str(current_user["_id"]))
     return conversations
 
-@router.get("/{conversation_id}", response_model=dict)
+@router.get("/{conversation_id}", response_model=ConversationDocOut)
 async def get_single_conversation(
     conversation_id: str,
     current_user: dict = Depends(get_current_active_user)
@@ -32,7 +33,7 @@ async def get_single_conversation(
         )
     return conversation
 
-@router.post("/{conversation_id}/messages")
+@router.post("/{conversation_id}/messages", response_model=MessageSendResult)
 async def send_message(
     conversation_id: str,
     message: MessageCreate,
