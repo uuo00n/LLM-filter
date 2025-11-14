@@ -19,12 +19,30 @@ async def _current_period() -> int:
     if h < 12:
         return 3
     return 4
-
-async def _get_student_by_user(user_id: ObjectId) -> Dict[str, Any]:
-    s = await db.db.students.find_one({"user_id": user_id})
+ 
+async def _get_primary_binding(account_id: ObjectId) -> Dict[str, Any]:
+    b = await db.db.bindings.find_one({"account_id": account_id, "primary": True})
+    if not b:
+        raise HTTPException(status_code=404, detail="未绑定人物")
+    return b
+ 
+async def _get_student_entity(account_id: ObjectId, binding: Dict[str, Any]) -> Dict[str, Any]:
+    s = await db.db.students.find_one({"person_id": binding.get("person_id")})
     if s:
         return s
-    raise HTTPException(status_code=404, detail="当前用户未绑定学生")
+    raise HTTPException(status_code=404, detail="未找到学生实体")
+ 
+async def _get_teacher_entity(account_id: ObjectId, binding: Dict[str, Any]) -> Dict[str, Any]:
+    t = await db.db.teachers.find_one({"person_id": binding.get("person_id")})
+    if t:
+        return t
+    raise HTTPException(status_code=404, detail="未找到教师实体")
+
+async def _get_student_by_user(user_id: ObjectId) -> Dict[str, Any]:
+    b = await _get_primary_binding(user_id)
+    if b.get("type") != "student":
+        raise HTTPException(status_code=404, detail="当前绑定非学生")
+    return await _get_student_entity(user_id, b)
 
 async def student_today_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
     today = await _today_iso()
@@ -86,7 +104,7 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     current_lesson_id = f"W{weekday}-P{period}"
     uid = ObjectId(current_user["_id"])
     classes = []
-    cursor = db.db.classes.find({"head_teacher_id": uid})
+    cursor = db.db.classes.find({"$or": [{"head_teacher_person_id": uid}, {"head_teacher_id": uid}]})
     async for c in cursor:
         classes.append(c)
     class_ids = [c.get("class_id") for c in classes]
@@ -148,32 +166,82 @@ async def department_overview(current_user: Dict[str, Any]) -> Dict[str, Any]:
     today = await _today_iso()
     weekday = await _weekday()
     total_students = await db.db.students.count_documents({})
-    present = await db.db.attendance.count_documents({"date": today, "status": "出勤"})
-    absent = await db.db.attendance.count_documents({"date": today, "status": {"$in": ["缺勤", "请假"]}})
-    ratio = (present / total_students) if total_students else 0
+    present_today = await db.db.attendance.count_documents({"date": today, "status": "出勤"})
+    absent_or_leave_today = await db.db.attendance.count_documents({"date": today, "status": {"$in": ["缺勤", "请假"]}})
 
     anomalies: List[Dict[str, Any]] = []
-    cursor = db.db.classes.find({})
-    async for c in cursor:
+    cursor_classes = db.db.classes.find({})
+    async for c in cursor_classes:
         cid = c.get("class_id")
         total = c.get("students_count", 0)
-        a = await db.db.attendance.count_documents({"class_id": cid, "date": today, "status": {"$in": ["缺勤", "请假"]}})
-        r = (a / total) if total else 0
-        if r > 0.3:
-            anomalies.append({"class_id": cid, "anomaly_rate": r})
+        abnormal = await db.db.attendance.count_documents({
+            "class_id": cid,
+            "date": today,
+            "status": {"$in": ["缺勤", "请假"]}
+        })
+        rate = (abnormal / total) if total else 0
+        if rate > 0.3:
+            anomalies.append({"class_id": cid, "anomaly_rate": rate})
 
-    teachers: Dict[str, int] = {}
-    cursor = db.db.schedules.find({"weekday": weekday})
-    async for s in cursor:
+    teacher_stats: Dict[str, Dict[str, int]] = {}
+    cursor_sched = db.db.schedules.find({"weekday": weekday})
+    async for s in cursor_sched:
         tid = s.get("teacher_id")
-        if tid:
-            key = str(tid)
-            teachers[key] = teachers.get(key, 0) + 1
+        if not tid:
+            continue
+        key = str(tid)
+        st = teacher_stats.get(key)
+        if not st:
+            st = {"present_slots": 0, "total_slots": 0}
+            teacher_stats[key] = st
+        st["total_slots"] += 1
+
+        ratios: List[float] = []
+        for cc in s.get("classes", []):
+            cid = cc.get("class_id")
+            cls = await db.db.classes.find_one({"class_id": cid})
+            total = cls.get("students_count", 0) if cls else 0
+            present = await db.db.attendance.count_documents({
+                "class_id": cid,
+                "date": today,
+                "lesson_id": s.get("lesson_id"),
+                "status": "出勤",
+            })
+            ratios.append((present / total) if total else 0)
+        avg_ratio = (sum(ratios) / len(ratios)) if ratios else 0
+        if avg_ratio >= 0.7:
+            st["present_slots"] += 1
+
+    teacher_attendance_rates: List[Dict[str, Any]] = []
+    for key, st in teacher_stats.items():
+        total_slots = st.get("total_slots", 0)
+        present_slots = st.get("present_slots", 0)
+        rate = (present_slots / total_slots) if total_slots else 0
+        teacher_attendance_rates.append({
+            "teacher_id": key,
+            "present_slots": present_slots,
+            "total_slots": total_slots,
+            "rate": rate,
+        })
+
+    directives: List[Dict[str, Any]] = []
+    cursor_dir = db.db.directives.find({"level": {"$in": ["department", "campus"]}}).sort("created_at", -1).limit(5)
+    async for d in cursor_dir:
+        directives.append({
+            "level": d.get("level"),
+            "content": d.get("content"),
+            "created_at": d.get("created_at"),
+        })
 
     return {
-        "student_present_ratio": ratio,
+        "students_attendance": {
+            "total": total_students,
+            "present": present_today,
+            "absent_or_leave": absent_or_leave_today,
+        },
+        "teacher_attendance_rates": teacher_attendance_rates,
         "anomalies": anomalies,
-        "teacher_timeslots": teachers,
+        "directives": directives,
     }
 
 async def campus_overview(current_user: Dict[str, Any]) -> Dict[str, Any]:

@@ -72,6 +72,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             "role": user.get("role", "user"),
             "role_level": user.get("role_level", get_role_level(user.get("role"))),
             "edition": user.get("edition", "edu"),
+            **({
+                "person_id": str(b["person_id"]),
+                "person_type": b.get("type"),
+                "bound_primary": True,
+            } if (b := await db.db.bindings.find_one({"account_id": user["_id"], "primary": True})) else {})
         },
         expires_delta=access_token_expires
     )
@@ -82,4 +87,9 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         "role": user.get("role", "user"),
         "role_level": user.get("role_level", get_role_level(user.get("role"))),
         "edition": user.get("edition", "edu"),
+        **({
+            "person_id": str(b["person_id"]),
+            "person_type": b.get("type"),
+            "bound_primary": True,
+        } if b else {})
     }

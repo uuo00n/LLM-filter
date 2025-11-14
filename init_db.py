@@ -357,10 +357,13 @@ async def seed_school_data(db, mode: str):
     await db.students.create_index("student_id", unique=True)
     await db.students.create_index("class_id")
     await db.students.create_index("user_id", unique=True, sparse=True)
+    await db.students.create_index("person_id", unique=True, sparse=True)
     await db.classes.create_index("class_id", unique=True)
     await db.classes.create_index("head_teacher_id")
+    await db.classes.create_index("head_teacher_person_id")
     await db.schedules.create_index([("classes.class_id", 1), ("weekday", 1), ("period", 1)])
     await db.schedules.create_index("lesson_id", unique=True)
+    await db.schedules.create_index("teacher_person_id")
     await db.attendance.create_index([("lesson_id", 1), ("student_id", 1)])
     await db.attendance.create_index("date")
     await db.conduct.create_index([("student_id", 1), ("date", 1)])
@@ -414,9 +417,6 @@ async def seed_school_data(db, mode: str):
         return docs
 
     students_docs = gen_students("SW22-1", 12) + gen_students("SW22-2", 12)
-    sample_user = await db.users.find_one({"username": "user", "edition": mode})
-    if sample_user and students_docs:
-        students_docs[0]["user_id"] = sample_user["_id"]
     await db.students.insert_many(students_docs)
 
     # 更新班级人数
@@ -447,6 +447,7 @@ async def seed_school_data(db, mode: str):
                 "period": period,
                 "course_name": course,
                 "teacher_id": teacher_id,
+                "teacher_person_id": None,
                 "start_time": f"{8 + period - 1}:00",
                 "end_time": f"{8 + period}:40",
                 "week_range": "1-18",
@@ -538,6 +539,90 @@ async def seed_school_data(db, mode: str):
     await db.directives.insert_many(directives_docs)
 
     print("学校业务数据初始化完成：students/classes/schedules/attendance/conduct/leaves/directives")
+
+    await seed_identity_data(db, mode)
+
+async def seed_identity_data(db, mode: str):
+    await db.persons.create_index("person_id", unique=True)
+    await db.teachers.create_index("teacher_id", unique=True)
+    await db.teachers.create_index("account_id", unique=True, sparse=True)
+    await db.bindings.create_index([("account_id", 1), ("type", 1)], unique=True)
+
+    user_doc = await db.users.find_one({"username": "user", "edition": mode})
+    manager_doc = await db.users.find_one({"username": "manager_edu", "edition": mode})
+    leader_doc = await db.users.find_one({"username": "leader_edu", "edition": mode})
+    master_doc = await db.users.find_one({"username": "master_edu", "edition": mode})
+
+    persons = []
+    student_persons = []
+    cursor_students = db.students.find({})
+    async for stu in cursor_students:
+        pid = f"P-STU-{stu.get('student_id')}"
+        person_doc = {"_id": ObjectId(), "person_id": pid, "name": stu.get("name"), "type": "student"}
+        persons.append(person_doc)
+        student_persons.append({"person": person_doc, "student_id": stu.get("student_id")})
+    if user_doc:
+        persons.append({"_id": ObjectId(), "person_id": "P-STU-USER", "name": "学生USER", "type": "student"})
+    if manager_doc:
+        persons.append({"_id": ObjectId(), "person_id": "P-TEA-001", "name": "班主任A", "type": "teacher"})
+    if leader_doc:
+        persons.append({"_id": ObjectId(), "person_id": "P-TEA-002", "name": "中层干部A", "type": "teacher"})
+    if master_doc:
+        persons.append({"_id": ObjectId(), "person_id": "P-TEA-003", "name": "校级干部A", "type": "teacher"})
+    if persons:
+        await db.persons.insert_many(persons)
+
+    teachers = []
+    def find_person(pid: str):
+        return next((p for p in persons if p["person_id"] == pid), None)
+    if manager_doc:
+        p = find_person("P-TEA-001")
+        teachers.append({"person_id": p["_id"], "teacher_id": "T-001", "department": "软件技术系", "roles": ["teacher", "homeroom"], "account_id": manager_doc["_id"]})
+    if leader_doc:
+        p = find_person("P-TEA-002")
+        teachers.append({"person_id": p["_id"], "teacher_id": "T-002", "department": "软件技术系", "roles": ["teacher", "cadre"], "account_id": leader_doc["_id"]})
+    if master_doc:
+        p = find_person("P-TEA-003")
+        teachers.append({"person_id": p["_id"], "teacher_id": "T-003", "department": "软件技术系", "roles": ["teacher", "cadre"], "account_id": master_doc["_id"]})
+    if teachers:
+        await db.teachers.insert_many(teachers)
+
+    for sp in student_persons:
+        await db.students.update_one({"student_id": sp["student_id"]}, {"$set": {"person_id": sp["person"]["_id"]}})
+
+    bindings = []
+    if user_doc:
+        p = find_person("P-STU-USER")
+        bindings.append({"account_id": user_doc["_id"], "person_id": p["_id"], "type": "student", "primary": True})
+    if manager_doc:
+        p = find_person("P-TEA-001")
+        bindings.append({"account_id": manager_doc["_id"], "person_id": p["_id"], "type": "teacher", "primary": True})
+    if leader_doc:
+        p = find_person("P-TEA-002")
+        bindings.append({"account_id": leader_doc["_id"], "person_id": p["_id"], "type": "teacher", "primary": True})
+    if master_doc:
+        p = find_person("P-TEA-003")
+        bindings.append({"account_id": master_doc["_id"], "person_id": p["_id"], "type": "teacher", "primary": True})
+    if bindings:
+        await db.bindings.insert_many(bindings)
+
+    teacher_map = {}
+    cursor_teachers = db.teachers.find({})
+    async for t in cursor_teachers:
+        if t.get("account_id"):
+            teacher_map[str(t.get("account_id"))] = t.get("person_id")
+
+    manager_person = teacher_map.get(str(manager_doc["_id"])) if manager_doc else None
+    if manager_person:
+        await db.classes.update_many({}, {"$set": {"head_teacher_person_id": manager_person}})
+
+    for acc_id, person_id in teacher_map.items():
+        await db.schedules.update_many({"teacher_id": ObjectId(acc_id)}, {"$set": {"teacher_person_id": person_id}})
+
+    # 移除重复旧字段，保留实体化字段
+    await db.classes.update_many({}, {"$unset": {"head_teacher_id": ""}})
+    await db.schedules.update_many({}, {"$unset": {"teacher_id": ""}})
+    await db.students.update_many({}, {"$unset": {"user_id": ""}})
 
 if __name__ == "__main__":
     asyncio.run(init_db())

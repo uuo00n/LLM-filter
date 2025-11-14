@@ -1,0 +1,30 @@
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from typing import List
+from bson import ObjectId
+from app.api.deps import require_edition_for_mode, require_role
+from app.db.mongodb import db
+
+router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
+
+class PersonCreate(BaseModel):
+    person_id: str
+    name: str
+    type: str = Field(pattern="^(student|teacher|staff)$")
+
+@router.post("/bulk")
+async def bulk_create(persons: List[PersonCreate], current_user: dict = Depends(require_role(3))):
+    docs = [{"person_id": p.person_id, "name": p.name, "type": p.type} for p in persons]
+    if not docs:
+        raise HTTPException(status_code=400, detail="空数据")
+    await db.db.persons.insert_many(docs)
+    return {"inserted": len(docs)}
+
+@router.get("")
+async def list_persons(current_user: dict = Depends(require_role(3))):
+    res = []
+    cursor = db.db.persons.find({}).sort("person_id", 1)
+    async for d in cursor:
+        d["_id"] = str(d["_id"])  
+        res.append(d)
+    return res
