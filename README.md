@@ -1,16 +1,30 @@
 # LLM-Filter 智能对话过滤系统
 
-一个基于 FastAPI + MongoDB + Ollama 的智能对话系统，内置高效敏感词过滤与管理员管理能力。
+一个面向教育与企业双场景的智能对话系统，基于 FastAPI + MongoDB + Ollama 构建，内置高效敏感词过滤、严格的角色与版别控制、完善的管理员操作与审计能力。
+
+本文档面向开发者与运维人员，提供从架构到部署的完整说明与最佳实践。
 
 ## 功能亮点
-- 智能对话：基于本地 Ollama 模型生成回复
-- 敏感词过滤：Trie（字典树）实现高效检测与标记
-- 用户认证：JWT（OAuth2 密码模式），支持普通用户与管理员
-- 对话历史：按用户保存会话与消息
-- 敏感词管理：管理员可增删改查、批量导入、按分类/严重程度筛选
-- 敏感记录追踪：记录触发详情与严重等级
-- 实体化数据模型：账户（users）与人物（persons）分离，学生/教师实体（students/teachers）统一通过绑定（bindings）关联
+- 智能对话：基于本地 Ollama 模型生成回复，支持可配置模型与服务地址
+- 敏感词过滤：Trie（字典树）实现高效检测与标记，支持分类/子分类与严重程度
+- 用户认证：JWT（OAuth2 密码模式），支持普通用户与管理员，令牌过期可配置
+- 对话历史：按用户维度保存会话与消息，记录敏感命中与模型回复
+- 敏感词管理：管理员增删改查、批量导入、CSV/JSON 文件导入与热更新
+- 审计追踪：敏感词触发记录，含最高严重度与触发上下文，便于合规审计
+- 实体化数据模型：账号与人物分离，学生/教师等实体通过主绑定统一管理
 - 角色看板：按角色等级与实体身份提供学生/班主任/中层/校级数据接口
+
+---
+
+## 系统架构
+- 应用层：`FastAPI` 提供 RESTful API，统一前缀 `\u002Fapi\u002Fv1`
+- 模型层：`Ollama` 作为本地推理服务，通过 `OLLAMA_BASE_URL` 与 `OLLAMA_MODEL` 配置
+- 数据层：`MongoDB` 存储账户、实体、课表与对话相关数据，敏感词词库与审计记录亦存于此
+- 过滤层：在应用内维护 Trie 结构，服务启动与词库变更时自动加载与热更新
+- 认证授权：`OAuth2 Password` + `JWT`，基于角色与版别依赖限制路由访问
+
+数据流概览：
+- 用户登录获取 `access_token` → 创建对话 → 发送消息 → 文本先经 Trie 过滤与记录 → 再调用 Ollama 获取回复 → 返回综合结果并持久化
 
 ---
 
@@ -67,7 +81,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 # 或
 openssl rand -hex 32
 ```
-将输出填入 `.env` 的 SECRET_KEY。
+将输出填入 `.env` 的 `SECRET_KEY`。
 
 4) 启动 MongoDB（任选其一）
 ```bash
@@ -108,8 +122,8 @@ python init_db.py
 - 生成 bindings（账号与人物主绑定），并清理旧字段与索引（students.user_id/classes.head_teacher_id/schedules.teacher_id）
 
 重要说明：
-- 该脚本会清空 DB_NAME 指定库中的“所有集合”（drop collection），随后再写入演示数据，仅用于本地开发与测试，请勿在生产环境运行。
-- 版别选择通过环境变量 APP_MODE 控制（可选值：edu 或 biz，默认 edu）。脚本会仅插入当前模式对应的测试用户，路由层也会基于该模式限制可访问的版别。
+- 该脚本会清空 `DB_NAME` 指定库中的所有集合（drop collection），随后再写入演示数据，仅用于本地开发与测试，请勿在生产环境运行。
+- 版别通过环境变量 `APP_MODE` 控制（可选值：`edu` 或 `biz`，默认 `edu`）。脚本仅插入当前模式对应的测试用户，路由亦基于该模式限制访问版别。
 
 7) 启动服务
 ```bash
@@ -119,24 +133,31 @@ uvicorn app.main:app --reload
 
 ---
 
-## 环境变量说明
+## 配置详解
 与代码一致，配置由 `app/core/config.py` 读取：
-- MONGODB_URL：MongoDB 连接串，默认 `mongodb://localhost:27017`
-- DB_NAME：数据库名，默认 `llm_filter_db`
-- APP_MODE：应用运行版别，`edu` 或 `biz`，默认 `edu`（路由依赖会限制仅允许该版别访问）
-- SECRET_KEY：JWT 签名密钥（必须为强随机）
-- ALGORITHM：JWT 算法，默认 `HS256`
-- ACCESS_TOKEN_EXPIRE_MINUTES：访问令牌过期时间（分钟），默认 `30`
-- OLLAMA_BASE_URL：Ollama 服务地址，默认 `http://localhost:11434`
-- OLLAMA_MODEL：Ollama 模型名，默认 `llama2`
+- `MONGODB_URL`：MongoDB 连接串，默认 `mongodb://localhost:27017`
+- `DB_NAME`：数据库名，默认 `llm_filter_db`
+- `APP_MODE`：应用运行版别，`edu` 或 `biz`，默认 `edu`；路由依赖限制仅允许当前版别访问
+- `SECRET_KEY`：JWT 签名密钥（必须为强随机），建议长度 ≥ 32 字节
+- `ALGORITHM`：JWT 算法，默认 `HS256`
+- `ACCESS_TOKEN_EXPIRE_MINUTES`：访问令牌过期时间（分钟），默认 `30`，生产环境建议缩短并启用刷新策略
+- `OLLAMA_BASE_URL`：Ollama 服务地址，默认 `http://localhost:11434`
+- `OLLAMA_MODEL`：Ollama 模型名，默认 `llama2`
 
-> 注意：原 README 中的 `DATABASE_NAME`、`OLLAMA_API_BASE_URL` 为旧命名，现统一为 `DB_NAME` 与 `OLLAMA_BASE_URL`。
+> 命名统一：旧命名 `DATABASE_NAME`、`OLLAMA_API_BASE_URL` 已替换为 `DB_NAME` 与 `OLLAMA_BASE_URL`。
+
+启动顺序与依赖：
+- 读取 `.env` → 建立 MongoDB 连接 → 加载敏感词至 Trie → 注册路由与依赖 → 启动服务并可用
 
 ---
 
 ## API 概览
-根路径：`/` 返回应用信息
-统一前缀：`/api/v1`
+- 根路径：`/` 返回应用信息
+- 统一前缀：`/api/v1`
+
+认证与调用约定：
+- 登录接口返回 `access_token` 与 `token_type`，后续请求在头部携带 `Authorization: Bearer <JWT>`
+- 管理员接口需具备管理员角色与与 `APP_MODE` 一致的版别，否则返回 403/401
 
 ### 认证（/auth）
 - POST `/api/v1/auth/register` 注册用户（JSON）
@@ -195,9 +216,9 @@ curl -X POST "http://localhost:8000/api/v1/conversations/<ID>/messages" \
   - PUT `/api/v1/admin/categories/{category_name}` 更新分类子分类
   - DELETE `/api/v1/admin/categories/{category_name}` 删除分类
 
-说明：部分路由挂载了基于 APP_MODE 的版别限制依赖（require_edition_for_mode），仅允许与当前 APP_MODE 一致的用户访问。
+说明：部分路由挂载了基于 `APP_MODE` 的版别限制依赖（`require_edition_for_mode`），仅允许与当前模式一致的用户访问。
 
-CSV 导入示例（文件需包含表头：word,category,subcategory,severity）：
+CSV 导入示例（文件需包含表头：`word,category,subcategory,severity`）：
 ```bash
 curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
      -H "Authorization: Bearer <JWT>" \
@@ -264,7 +285,7 @@ llm-filter/
 
 ---
 
-## MongoDB 集合说明
+## 数据模型与集合说明
 - `users`：账户与认证信息，用于登录与权限控制；字段包含 `username/email/hashed_password/role/role_level/edition/created_at/updated_at`。
 - `persons`：人物档案的统一身份标识；字段包含 `person_id/name/type`，供学生/教师等实体引用。
 - `bindings`：账号与人物的主绑定关系；字段包含 `account_id/person_id/type/primary`，决定账号当前实体身份（学生/教师）。
@@ -317,7 +338,7 @@ llm-filter/
 - `sensitive_words`：`app/services/sensitive_word.py`、`app/utils/sensitive_word_filter.py`、`app/api/v1/admin.py`、`init_db.py`
 - `sensitive_records`：`app/services/sensitive_word.py`、`app/services/conversation.py`、`app/api/v1/admin.py`、`init_db.py`
 
-## 敏感词过滤说明
+## 敏感词过滤机制
 - 使用 Trie（字典树）加载敏感词并检测文本，返回是否命中与命中的词列表
 - 支持主分类与子分类，并记录严重程度（1-5，5 最严重）
 - 管理员可通过导入/批量添加快速构建词库
@@ -327,12 +348,34 @@ llm-filter/
 - 应用启动时会执行 `load_sensitive_words()`，将数据库中的词库加载到内存的 Trie，用于高效匹配。
 - 通过管理员接口新增/删除/批量导入敏感词后，服务会自动调用 `load_sensitive_words()` 进行“热更新”，无需重启即可生效。
 
+运行时拦截链路：
+- 接收用户消息 → 调用过滤服务检测与返回命中词与最高严重度 → 命中则写审计记录至 `sensitive_records` → 继续模型推理并合并回复 → 返回完整响应
+
+响应示例（对话消息发送接口）：
+```json
+{
+  "message_id": "...",
+  "contains_sensitive_words": true,
+  "sensitive_words_found": [
+    {"word": "赌博", "category": "违法活动", "subcategory": "赌博", "severity": 3}
+  ],
+  "model_reply": "...",
+  "timestamp": "2025-01-01T12:00:00Z"
+}
+```
+
 ---
 
-## 开发与部署提示
-- CORS 已默认允许全部来源，生产环境请限制 `allow_origins`
-- 开发模式使用 `--reload`；生产建议使用 `uvicorn`/`gunicorn` + 进程管理（如 `supervisor`/`systemd`）
-- 日志与安全：请务必使用强随机 `SECRET_KEY` 并妥善保管 `.env`
+## 部署与运维
+- CORS：开发阶段允许全部来源，生产环境务必限制 `allow_origins`
+- 进程与并发：开发模式使用 `--reload`；生产建议 `uvicorn` 或 `gunicorn`（多 worker）+ 进程管理（`supervisor`/`systemd`）
+- 监控与审计：建议对管理员操作与敏感词命中记录进行周期性审计与归档
+- 备份策略：对 `DB_NAME` 对应数据库进行定期备份，优先增量备份并校验恢复流程
+- 安全基线：强随机 `SECRET_KEY`、最小权限的数据库账户、受限的网络暴露，仅在内网访问 Mongo 与 Ollama
+
+性能与容量建议：
+- Trie 加载与匹配时间随词库规模线性增长，批量导入后可观察首请求延迟
+- 对话与审计记录增长较快，建议对旧记录进行归档与 TTL 管理（如为集合设置过期索引）
 
 角色与权限等级：
 - user：1（学生/员工）
@@ -366,4 +409,4 @@ llm-filter/
 本项目使用 MIT 许可证，详见 `LICENSE`。
 
 ## 贡献
-欢迎提交 Issue 与 PR，一起完善敏感词分类与对话体验。
+欢迎提交 Issue 与 PR，共建更完善的敏感词分类与更好的对话体验。
