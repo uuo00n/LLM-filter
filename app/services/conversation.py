@@ -69,16 +69,31 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
     
     # 如果包含敏感词，记录并返回拒绝回复
     if contains_sensitive:
-        # 创建敏感词记录
+        # 补充敏感词详细信息
+        detailed_words = []
+        if sensitive_words:
+            cursor = db.db.sensitive_words.find({"word": {"$in": sensitive_words}})
+            async for doc in cursor:
+                detailed_words.append({
+                    "word": doc.get("word"),
+                    "category": doc.get("category"),
+                    "subcategory": doc.get("subcategory"),
+                    "severity": doc.get("severity", 1),
+                })
+        highest = highest_severity
+        if detailed_words:
+            highest = max([dw.get("severity", 1) for dw in detailed_words])
+
+        # 创建敏感词记录（包含详细信息）
         sensitive_record = {
             "user_id": ObjectId(user_id),
             "conversation_id": ObjectId(conversation_id),
             "message_content": content,
-            "sensitive_words_found": sensitive_words,
-            "highest_severity": highest_severity,
+            "sensitive_words_found": detailed_words,
+            "highest_severity": highest,
             "timestamp": datetime.now()
         }
-        
+
         await db.db.sensitive_records.insert_one(sensitive_record)
         
         # 创建系统回复

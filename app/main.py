@@ -31,11 +31,13 @@ app = FastAPI(
     redoc_url=None  # 禁用默认的/redoc
 )
 
-# 配置CORS
+origins_cfg = settings.CORS_ALLOWED_ORIGINS
+origins = [o.strip() for o in origins_cfg.split(",") if o.strip()] if origins_cfg and origins_cfg != "*" else ["*"]
+allow_credentials = False if origins == ["*"] else True
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该限制为特定域名
-    allow_credentials=True,
+    allow_origins=origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -55,13 +57,11 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.on_event("startup")
 async def startup_db_client():
-    """应用启动时连接数据库并加载敏感词"""
     await connect_to_mongo()
     await sensitive_word_filter.load_sensitive_words()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    """应用关闭时断开数据库连接"""
     await close_mongo_connection()
 
 @app.get("/")

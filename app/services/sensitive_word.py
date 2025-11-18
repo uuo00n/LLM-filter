@@ -168,11 +168,17 @@ async def get_sensitive_records(
     
     # 按用户ID筛选
     if user_id:
-        query["user_id"] = user_id
+        try:
+            query["user_id"] = ObjectId(user_id)
+        except Exception:
+            query["user_id"] = user_id
     
     # 按对话ID筛选
     if conversation_id:
-        query["conversation_id"] = conversation_id
+        try:
+            query["conversation_id"] = ObjectId(conversation_id)
+        except Exception:
+            query["conversation_id"] = conversation_id
     
     # 按时间范围筛选
     if start_date and end_date:
@@ -203,10 +209,10 @@ async def get_sensitive_records(
     async for document in cursor:
         records.append({
             "id": str(document["_id"]),
-            "user_id": document["user_id"],
-            "conversation_id": document["conversation_id"],
+            "user_id": str(document["user_id"]),
+            "conversation_id": str(document["conversation_id"]),
             "message_content": document["message_content"],
-            "sensitive_words_found": document["sensitive_words_found"],
+            "sensitive_words_found": document.get("sensitive_words_found", []),
             "highest_severity": document.get("highest_severity", 1),
             "timestamp": document["timestamp"]
         })

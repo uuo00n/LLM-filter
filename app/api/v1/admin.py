@@ -15,8 +15,6 @@ from app.services.sensitive_word import (
     delete_category, bulk_import_sensitive_words
 )
 from app.models.sensitive_word import SENSITIVE_WORD_CATEGORIES, SENSITIVE_WORD_SUBCATEGORIES
-
-# 在路由层挂载版别运行模式依赖，确保仅在当前模式的版别下进行管理操作
 router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
 
 @router.post("/sensitive-words", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -109,14 +107,6 @@ async def list_sensitive_words(
     max_severity: Optional[int] = None,
     _: dict = Depends(get_current_admin_user)
 ):
-    """获取所有敏感词（仅管理员）
-    
-    可选筛选参数:
-    - category: 主分类
-    - subcategory: 子分类
-    - min_severity: 最小严重程度
-    - max_severity: 最大严重程度
-    """
     return await get_all_sensitive_words(category, subcategory, min_severity, max_severity)
 
 @router.get("/sensitive-records", response_model=List[SensitiveRecordResponse])

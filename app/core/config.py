@@ -29,4 +29,3 @@ class Settings(BaseSettings):
     # 注意：不再提供混合模式（mixed），如需混合请显式设置并在依赖中放行
     APP_MODE: str = os.getenv("APP_MODE", "edu")
 
-settings = Settings()
