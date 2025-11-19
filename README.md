@@ -133,6 +133,91 @@ uvicorn app.main:app --reload
 
 ---
 
+## 快速开始（Windows PowerShell 示例）
+
+1) 允许脚本执行并创建虚拟环境
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+py -m venv .venv
+./.venv/Scripts/Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+2) 创建 `.env`（会在根目录生成配置文件）
+```powershell
+@"
+MONGODB_URL=mongodb://localhost:27017
+DB_NAME=llm_filter_db
+
+SECRET_KEY=REPLACE_WITH_RANDOM_HEX
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama2
+
+APP_MODE=edu
+CORS_ALLOWED_ORIGINS=*
+
+ADMIN_EDU_PASSWORD=admin123
+USER_EDU_PASSWORD=user123
+MANAGER_EDU_PASSWORD=manager123
+LEADER_EDU_PASSWORD=leader123
+MASTER_EDU_PASSWORD=master123
+"@ | Out-File -Encoding UTF8 .env
+
+# 生成强随机密钥并替换上面的 SECRET_KEY
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+3) 启动 MongoDB（任选其一）
+- 选项A：Docker（已安装 Docker Desktop）
+```powershell
+docker run -d --name mongo -p 27017:27017 mongo:6.0
+```
+- 选项B：本机服务（已安装 MongoDB Community）
+```powershell
+# 启动服务（如安装为 Windows 服务）
+Start-Service -Name MongoDB
+# 或使用 mongod 手动启动（根据你的安装路径与数据目录调整）
+# & "C:\\Program Files\\MongoDB\\Server\\6.0\\bin\\mongod.exe" --dbpath C:\\data\\db
+
+# 端口连通性检查
+Test-NetConnection -ComputerName localhost -Port 27017
+```
+
+4) 安装并验证 Ollama（可选但推荐）
+```powershell
+# 安装（如已配置 Winget）
+winget install -e --id Ollama.Ollama
+# 拉取示例模型
+ollama pull llama2
+# 验证服务
+curl.exe http://localhost:11434/api/tags
+```
+
+5) 初始化数据库（生成演示数据与默认账户、实体化示例）
+```powershell
+python init_db.py
+```
+
+6) 启动后端服务
+```powershell
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+7) 访问接口文档
+```powershell
+Start-Process http://localhost:8000/docs
+```
+
+默认测试账号：
+- 管理员：`admin / admin123`
+- 普通用户：`user / user123`
+
+注意：如需限制 CORS 来源，在 `.env` 中将 `CORS_ALLOWED_ORIGINS` 设置为以逗号分隔的域名列表（例如 `https://example.com,https://admin.example.com`）；当使用通配 `*` 时，服务将自动关闭跨域凭据以满足浏览器安全策略。
+
 ## 配置详解
 与代码一致，配置由 `app/core/config.py` 读取：
 - `MONGODB_URL`：MongoDB 连接串，默认 `mongodb://localhost:27017`
