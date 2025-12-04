@@ -28,4 +28,8 @@ class Settings(BaseSettings):
     # 允许的值："edu" / "biz"；若未设置则默认使用 "edu"
     # 注意：不再提供混合模式（mixed），如需混合请显式设置并在依赖中放行
     APP_MODE: str = os.getenv("APP_MODE", "edu")
+    CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+    GITHUB_DEFAULT_REPO: str = os.getenv("GITHUB_DEFAULT_REPO", "")
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
 
+settings = Settings()
