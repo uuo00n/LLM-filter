@@ -114,19 +114,24 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
     # 详细敏感词信息（用于响应与审计）
     detailed_words: List[Dict[str, Any]] = []
     if contains_sensitive and sensitive_words:
-        cursor = db.db.sensitive_words.find({"word": {"$in": sensitive_words}})
-        async for doc in cursor:
-            detailed_words.append({
-                "word": doc.get("word"),
-                "category": doc.get("category"),
-                "subcategory": doc.get("subcategory"),
-                "severity": doc.get("severity", 1),
-            })
-        # 对未命中库的词提供兜底
-        known = set(dw["word"] for dw in detailed_words)
-        for w in sensitive_words:
-            if w not in known:
-                detailed_words.append({"word": w, "category": None, "subcategory": None, "severity": 1})
+        # 新版过滤器已返回结构化信息，直接使用；兼容旧版字符串列表
+        if isinstance(sensitive_words[0], dict):
+            detailed_words = sensitive_words
+        else:
+            words_list = [w for w in sensitive_words if isinstance(w, str)]
+            if words_list:
+                cursor = db.db.sensitive_words.find({"word": {"$in": words_list}})
+                async for doc in cursor:
+                    detailed_words.append({
+                        "word": doc.get("word"),
+                        "category": doc.get("category"),
+                        "subcategory": doc.get("subcategory"),
+                        "severity": doc.get("severity", 1),
+                    })
+                known = set(dw["word"] for dw in detailed_words)
+                for w in words_list:
+                    if w not in known:
+                        detailed_words.append({"word": w, "category": None, "subcategory": None, "severity": 1})
 
     # 创建用户消息（消息中也保存结构化敏感词列表，便于后续展示）
     user_message = {
