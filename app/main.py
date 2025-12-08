@@ -8,6 +8,7 @@ from app.utils.sensitive_word_filter import sensitive_word_filter
 
 app = FastAPI(
     title=settings.APP_NAME,
+    version="1.0.0",
     description=(
         "LLM 过滤系统后端接口\n\n"
         "角色等级：1 学生、2 班主任、3 中层、4 校级、5 管理员。\n"
@@ -28,7 +29,16 @@ app = FastAPI(
     ],
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=None,  # 禁用默认的/docs
-    redoc_url=None  # 禁用默认的/redoc
+    redoc_url=None,  # 禁用默认的/redoc
+    contact={
+        "name": "LLM Filter Team",
+        "url": settings.APP_BASE_URL,
+        "email": "huangjunbo1107@outlook.com",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    }
 )
 
 origins_cfg = settings.CORS_ALLOWED_ORIGINS

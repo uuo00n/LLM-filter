@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Optional
 from bson import ObjectId
@@ -30,8 +30,13 @@ class TeacherOut(BaseModel):
     summary="批量导入教师实体",
     description="导入教师实体（person_id/teacher_id/department/roles），可选绑定 account_id。",
     response_model=BulkInsertResult,
+    responses={
+        400: {"description": "空数据", "content": {"application/json": {"example": {"detail": "空数据"}}}},
+        401: {"description": "认证失败", "content": {"application/json": {"example": {"detail": "无效的认证凭据"}}}},
+        403: {"description": "权限不足", "content": {"application/json": {"example": {"detail": "权限不足"}}}},
+    },
 )
-async def bulk_create(teachers: List[TeacherCreate], current_user: dict = Depends(require_role(3))) -> BulkInsertResult:
+async def bulk_create(teachers: List[TeacherCreate] = Body(..., description="教师实体列表"), current_user: dict = Depends(require_role(3))) -> BulkInsertResult:
     docs = []
     for t in teachers:
         doc = {

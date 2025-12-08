@@ -12,8 +12,12 @@ router = APIRouter()
 @router.post(
     "/register",
     response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="用户注册",
     description="创建基础账户（默认教育版、角色等级为1）。",
+    responses={
+        400: {"description": "用户名或邮箱已存在", "content": {"application/json": {"example": {"detail": "用户名已存在"}}}},
+    },
 )
 async def register(user_data: UserCreate):
     """注册新用户"""
@@ -63,6 +67,9 @@ async def register(user_data: UserCreate):
     response_model=Token,
     summary="用户登录",
     description="使用表单登录（username/password），返回令牌与用户/绑定信息。",
+    responses={
+        401: {"description": "认证失败", "content": {"application/json": {"example": {"detail": "用户名或密码错误"}}}},
+    },
 )
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """用户登录"""

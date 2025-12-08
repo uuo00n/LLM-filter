@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from pydantic import BaseModel
 from typing import List, Optional
 from bson import ObjectId
@@ -24,8 +24,13 @@ class ClassOut(BaseModel):
     summary="设置班主任人物",
     description="为班级设置 head_teacher_person_id（指向教师人物）。",
     response_model=ActionResult,
+    responses={
+        404: {"description": "班级不存在", "content": {"application/json": {"example": {"detail": "班级不存在"}}}},
+        401: {"description": "认证失败", "content": {"application/json": {"example": {"detail": "无效的认证凭据"}}}},
+        403: {"description": "权限不足", "content": {"application/json": {"example": {"detail": "权限不足"}}}},
+    },
 )
-async def set_head_teacher(class_id: str, payload: HeadTeacherPayload, current_user: dict = Depends(require_role(3))) -> ActionResult:
+async def set_head_teacher(class_id: str = Path(..., description="班级ID"), payload: HeadTeacherPayload = Body(..., description="班主任人物设置"), current_user: dict = Depends(require_role(3))) -> ActionResult:
     res = await db.db.classes.update_one({"class_id": class_id}, {"$set": {"head_teacher_person_id": ObjectId(payload.head_teacher_person_id)}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="班级不存在")

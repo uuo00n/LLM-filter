@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel, Field
 from typing import List, Dict
 from bson import ObjectId
@@ -30,8 +30,13 @@ class PersonsListResponse(BaseModel):
     summary="批量导入人物档案",
     description="导入学生/教师/职员的基础人物信息（person_id/name/type）。",
     response_model=BulkInsertResult,
+    responses={
+        400: {"description": "空数据", "content": {"application/json": {"example": {"detail": "空数据"}}}},
+        401: {"description": "认证失败", "content": {"application/json": {"example": {"detail": "无效的认证凭据"}}}},
+        403: {"description": "权限不足", "content": {"application/json": {"example": {"detail": "权限不足"}}}},
+    },
 )
-async def bulk_create(persons: List[PersonCreate], current_user: dict = Depends(require_role(3))) -> BulkInsertResult:
+async def bulk_create(persons: List[PersonCreate] = Body(..., description="人物档案列表"), current_user: dict = Depends(require_role(3))) -> BulkInsertResult:
     docs = [{"person_id": p.person_id, "name": p.name, "type": p.type} for p in persons]
     if not docs:
         raise HTTPException(status_code=400, detail="空数据")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
@@ -27,8 +27,13 @@ class ScheduleOut(BaseModel):
     summary="为节次设置任课教师人物",
     description="将指定 lesson_id 的节次设置为 teacher_person_id（教师人物）。",
     response_model=ActionResult,
+    responses={
+        404: {"description": "节次不存在", "content": {"application/json": {"example": {"detail": "节次不存在"}}}},
+        401: {"description": "认证失败", "content": {"application/json": {"example": {"detail": "无效的认证凭据"}}}},
+        403: {"description": "权限不足", "content": {"application/json": {"example": {"detail": "权限不足"}}}},
+    },
 )
-async def assign_teacher(payload: AssignTeacherPayload, current_user: dict = Depends(require_role(3))) -> ActionResult:
+async def assign_teacher(payload: AssignTeacherPayload = Body(..., description="节次与教师人物"), current_user: dict = Depends(require_role(3))) -> ActionResult:
     res = await db.db.schedules.update_one({"lesson_id": payload.lesson_id}, {"$set": {"teacher_person_id": ObjectId(payload.teacher_person_id)}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="节次不存在")
