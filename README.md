@@ -17,7 +17,7 @@
 ---
 
 ## 系统架构
-- 应用层：`FastAPI` 提供 RESTful API，统一前缀 `\u002Fapi\u002Fv1`
+- 应用层：`FastAPI` 提供 RESTful API，统一前缀 `/api/v1`
 - 模型层：`Ollama` 作为本地推理服务，通过 `OLLAMA_BASE_URL` 与 `OLLAMA_MODEL` 配置
 - 数据层：`MongoDB` 存储账户、实体、课表与对话相关数据，敏感词词库与审计记录亦存于此
 - 过滤层：在应用内维护 Trie 结构，服务启动与词库变更时自动加载与热更新
@@ -112,9 +112,19 @@ ollama pull llama2
 ```bash
 python init_db.py
 ```
-默认测试账号：
-- 管理员：admin / admin123
-- 普通用户：user / user123
+默认测试账号（基于 `APP_MODE`）：
+- 教育版（APP_MODE=edu）：
+  - 管理员：`admin / ADMIN_EDU_PASSWORD`（默认 `admin123`）
+  - 普通用户：`user / USER_EDU_PASSWORD`（默认 `user123`）
+  - 班主任：`manager_edu / MANAGER_EDU_PASSWORD`（默认 `manager123`）
+  - 中层：`leader_edu / LEADER_EDU_PASSWORD`（默认 `leader123`）
+  - 校级：`master_edu / MASTER_EDU_PASSWORD`（默认 `master123`）
+- 企业版（APP_MODE=biz）：
+  - 管理员：`administrator_biz / ADMIN_BIZ_PASSWORD`（默认 `adminbiz123`）
+  - 普通用户：`user_biz / USER_BIZ_PASSWORD`（默认 `userbiz123`）
+  - 组长：`manager_biz / MANAGER_BIZ_PASSWORD`（默认 `managerbiz123`）
+  - 负责人：`leader_biz / LEADER_BIZ_PASSWORD`（默认 `leaderbiz123`）
+  - 高管：`master_biz / MASTER_BIZ_PASSWORD`（默认 `masterbiz123`）
 
 实体化初始化内容：
 - 生成 students/classes/schedules/attendance/conduct/leaves/directives
@@ -212,9 +222,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 Start-Process http://localhost:8000/docs
 ```
 
-默认测试账号：
-- 管理员：`admin / admin123`
-- 普通用户：`user / user123`
+默认测试账号（基于 `APP_MODE`）：
+- 教育版（APP_MODE=edu）：
+  - 管理员：`admin / ADMIN_EDU_PASSWORD`（默认 `admin123`）
+  - 普通用户：`user / USER_EDU_PASSWORD`（默认 `user123`）
+  - 班主任：`manager_edu / MANAGER_EDU_PASSWORD`（默认 `manager123`）
+  - 中层：`leader_edu / LEADER_EDU_PASSWORD`（默认 `leader123`）
+  - 校级：`master_edu / MASTER_EDU_PASSWORD`（默认 `master123`）
+- 企业版（APP_MODE=biz）：
+  - 管理员：`administrator_biz / ADMIN_BIZ_PASSWORD`（默认 `adminbiz123`）
+  - 普通用户：`user_biz / USER_BIZ_PASSWORD`（默认 `userbiz123`）
+  - 组长：`manager_biz / MANAGER_BIZ_PASSWORD`（默认 `managerbiz123`）
+  - 负责人：`leader_biz / LEADER_BIZ_PASSWORD`（默认 `leaderbiz123`）
+  - 高管：`master_biz / MASTER_BIZ_PASSWORD`（默认 `masterbiz123`）
 
 注意：如需限制 CORS 来源，在 `.env` 中将 `CORS_ALLOWED_ORIGINS` 设置为以逗号分隔的域名列表（例如 `https://example.com,https://admin.example.com`）；当使用通配 `*` 时，服务将自动关闭跨域凭据以满足浏览器安全策略。
 
@@ -265,12 +285,27 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
 ```
 Authorization: Bearer <JWT>
 ```
+登录响应字段补充：
+```
+{
+  "access_token": "<JWT>",
+  "token_type": "bearer",
+  "role": "user|manager|leader|master|administrator",
+  "role_level": 1..5,
+  "edition": "edu|biz",
+  "person_id": "<绑定人物ID>",        # 若存在主绑定
+  "person_type": "student|teacher",   # 若存在主绑定
+  "bound_primary": true               # 若存在主绑定
+}
+```
+OpenAPI 文档地址：`/api/v1/openapi.json`，Swagger UI：`/docs`。
 
 ### 对话（/conversations）
 - POST `/api/v1/conversations/` 创建新对话
 - GET `/api/v1/conversations/` 获取当前用户的所有对话
 - GET `/api/v1/conversations/{conversation_id}` 获取指定对话
 - POST `/api/v1/conversations/{conversation_id}/messages` 发送消息并获取回复
+ - DELETE `/api/v1/conversations/{conversation_id}` 删除对话
 
 示例：创建对话
 ```bash
@@ -321,7 +356,7 @@ curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
 - GET `/api/v1/dashboard/student/today` 学生端：今日个人课表、出勤与操行（需角色≥1且主绑定为学生）
 - GET `/api/v1/dashboard/homeroom/current` 班主任端：当前节次课程与地点、节次出勤率、请假、部门指示（需角色≥2且主绑定为教师）
 - GET `/api/v1/dashboard/department/overview` 中层端：教师节次出勤率、学生出勤聚合、异常班级、近期指示（需角色≥3）
-- GET `/api/v1/dashboard/campus/overview` 校级端：校园整体总览（需角色≥5）
+- GET `/api/v1/dashboard/campus/overview` 校级端：校园整体总览（需角色≥4）
 
 说明：路由统一挂载版别限制依赖 `require_edition_for_mode()`，学生/班主任端同时挂载实体绑定依赖 `require_binding(student|teacher)`。
 
@@ -329,6 +364,10 @@ curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
 - 人物档案（/persons）
   - POST `/api/v1/persons/bulk` 批量导入人物档案（`person_id/name/type`）
   - GET `/api/v1/persons` 列出人物档案
+- 学生（/students）
+  - POST `/api/v1/students/{student_id}/bind` 绑定指定学生到用户（需角色≥2）
+  - DELETE `/api/v1/students/{student_id}/bind` 解绑当前绑定（需角色≥2）
+  - GET `/api/v1/students/me` 查询当前账号绑定的学生（需角色≥1）
 - 教师实体（/teachers）
   - POST `/api/v1/teachers/bulk` 批量导入教师实体（`person_id/teacher_id/department/roles`，可选 `account_id`）
   - GET `/api/v1/teachers` 列出教师实体
@@ -435,6 +474,42 @@ llm-filter/
 
 运行时拦截链路：
 - 接收用户消息 → 调用过滤服务检测与返回命中词与最高严重度 → 命中则写审计记录至 `sensitive_records` → 继续模型推理并合并回复 → 返回完整响应
+
+### 响应示例（对话）
+命中敏感词（返回拒绝回复并记录审计）：
+```json
+{
+  "contains_sensitive_words": true,
+  "sensitive_words_found": [
+    {"word":"赌博","category":"违法活动","subcategory":"赌博","severity":3}
+  ],
+  "assistant_response": "当前问题暂无法回答。"
+}
+```
+未命中敏感词（正常生成回复）：
+```json
+{
+  "contains_sensitive_words": false,
+  "sensitive_words_found": [],
+  "assistant_response": "你好！我是一个AI助手..."
+}
+```
+
+### 错误码与约定
+- `200` 成功
+- `201` 创建成功
+- `204` 删除成功无内容
+- `400` 请求参数错误或业务校验失败
+- `401` 未认证或令牌无效
+- `403` 权限不足或版别不匹配
+- `404` 资源不存在
+- `500` 服务器内部错误
+
+### 根路径与健康检查
+- GET `/` 返回应用信息：
+```json
+{"app_name":"LLM过滤系统","version":"1.0.0","message":"欢迎使用LLM过滤系统API"}
+```
 
 响应示例（对话消息发送接口）：
 ```json
