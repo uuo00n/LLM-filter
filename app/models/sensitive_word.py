@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from bson import ObjectId
 from app.models.user import PyObjectId
 
@@ -42,10 +42,14 @@ class SensitiveWordModel(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, v: ObjectId):
+        return str(v)
 
 # 敏感词详细信息
 class SensitiveWordInfo(BaseModel):
@@ -64,7 +68,19 @@ class SensitiveRecordModel(BaseModel):
     highest_severity: int = 1  # 记录中最高的严重程度
     timestamp: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, v: ObjectId):
+        return str(v)
+
+    @field_serializer("user_id", when_used="json")
+    def serialize_user_id(self, v: ObjectId):
+        return str(v)
+
+    @field_serializer("conversation_id", when_used="json")
+    def serialize_conversation_id(self, v: ObjectId):
+        return str(v)

@@ -1,25 +1,26 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from bson import ObjectId
+from pydantic_core import core_schema
 
 # 自定义ObjectId字段
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_validators__(cls):
-        # Pydantic v2 仍支持生成器形式的验证器
-        yield cls.validate
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        def validate(v):
+            if isinstance(v, ObjectId):
+                return v
+            if ObjectId.is_valid(v):
+                return ObjectId(v)
+            raise ValueError("无效的ObjectId")
+        return core_schema.no_info_plain_validator_function(validate)
 
     @classmethod
-    def validate(cls, v):
-        # 校验传入的值是否是合法的 ObjectId 字符串
-        if not ObjectId.is_valid(v):
-            raise ValueError("无效的ObjectId")
-        return ObjectId(v)
-
-    # Pydantic v2 中不再支持 __modify_schema__；如需自定义
-    # JSON Schema，可实现 __get_pydantic_json_schema__。当前
-    # 版本先保持默认 Schema，以确保运行稳定。
+    def __get_pydantic_json_schema__(cls, core_schema_, handler):
+        json_schema = handler(core_schema_)
+        json_schema.update({"type": "string"})
+        return json_schema
 
 
 # 用户模型（修复缩进错误：确保为顶层类定义）
@@ -42,15 +43,10 @@ class UserModel(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        # 允许使用字段名进行赋值（即使定义了 alias）
-        allow_population_by_field_name = True
-        # 允许使用自定义类型（如 ObjectId）
-        arbitrary_types_allowed = True
-        # 将 ObjectId 序列化为字符串，便于前端展示
-        json_encoders = {ObjectId: str}
-        # 示例数据，便于接口文档和调试
-        schema_extra = {
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_schema_extra={
             "example": {
                 "username": "user1",
                 "email": "user1@example.com",
@@ -59,4 +55,9 @@ class UserModel(BaseModel):
                 "role_level": 1,
                 "edition": "edu",
             }
-        }
+        },
+    )
+
+    @field_serializer("id", when_used="json")
+    def serialize_id(self, v: ObjectId):
+        return str(v)
