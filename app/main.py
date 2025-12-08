@@ -59,6 +59,9 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 async def startup_db_client():
     await connect_to_mongo()
     await sensitive_word_filter.load_sensitive_words()
+    base = settings.APP_BASE_URL.rstrip("/")
+    print(f"API 文档: {base}/docs")
+    print(f"OpenAPI JSON: {base}{settings.API_V1_STR}/openapi.json")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

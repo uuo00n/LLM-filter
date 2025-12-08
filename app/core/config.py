@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # 应用配置
     APP_NAME: str = "LLM过滤系统"
     API_V1_STR: str = "/api/v1"
+    APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
     
     # 数据库配置
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
