@@ -32,5 +32,8 @@ class Settings(BaseSettings):
     CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "*")
     GITHUB_DEFAULT_REPO: str = os.getenv("GITHUB_DEFAULT_REPO", "")
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+    
+    # 学期配置
+    TERM_START_DATE: str = os.getenv("TERM_START_DATE", "2025-09-01")  # 默认开学日期
 
 settings = Settings()

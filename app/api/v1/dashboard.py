@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.api.deps import require_edition_for_mode, require_role, require_binding
 from app.services.dashboard import (
     student_today_summary,
+    student_week_schedule,
     homeroom_current_summary,
     department_overview,
     campus_overview,
@@ -33,6 +34,21 @@ class StudentTodaySummary(BaseModel):
     today_schedule: List[StudentTodaySchedule]
     today_attendance: List[StudentTodayAttendance]
     today_conduct: Dict[str, Any]
+
+class StudentWeekScheduleItem(BaseModel):
+    lesson_id: Optional[str] = None
+    period: Optional[int] = None
+    course_name: Optional[str] = None
+    location: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    teacher_person_id: Optional[str] = None
+
+class StudentWeekSummary(BaseModel):
+    student: Dict[str, Optional[str]]
+    current_week: int
+    week_dates: Dict[int, str]
+    schedule: Dict[str, List[StudentWeekScheduleItem]]
 
 class HomeroomLesson(BaseModel):
     class_id: Optional[str]
@@ -97,6 +113,23 @@ class CampusOverview(BaseModel):
 )
 async def student_today(current_user: dict = Depends(require_role(1)), _b: dict = Depends(require_binding("student"))) -> StudentTodaySummary:
     return await student_today_summary(current_user)
+
+@router.get(
+    "/student/week",
+    summary="学生端：周课表查询",
+    description="需角色等级≥1且主绑定为学生；返回指定周次（默认当前周）的完整课表，支持 'week' 参数查询下一周。",
+    response_model=StudentWeekSummary,
+    responses={
+        401: {"description": "未认证", "content": {"application/json": {"example": {"detail": "无效的认证凭据"}}}},
+        403: {"description": "权限不足或未绑定学生", "content": {"application/json": {"example": {"detail": "实体绑定不存在或类型不匹配"}}}},
+    }
+)
+async def student_week(
+    week: Optional[int] = Query(None, description="周次（如 1, 2, ...），不传则默认为当前周"),
+    current_user: dict = Depends(require_role(1)),
+    _b: dict = Depends(require_binding("student"))
+) -> StudentWeekSummary:
+    return await student_week_schedule(current_user, week)
 
 @router.get(
     "/homeroom/current",

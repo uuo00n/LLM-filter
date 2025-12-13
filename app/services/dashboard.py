@@ -1,14 +1,43 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Any
 from bson import ObjectId
 from fastapi import HTTPException
 from app.db.mongodb import db
+from app.core.config import settings
 
 async def _today_iso() -> str:
     return datetime.now().date().isoformat()
 
 async def _weekday() -> int:
     return datetime.now().isoweekday()
+
+async def _get_current_week() -> int:
+    try:
+        start_date = datetime.strptime(settings.TERM_START_DATE, "%Y-%m-%d").date()
+        today = datetime.now().date()
+        delta = today - start_date
+        if delta.days < 0:
+            return 1
+        return (delta.days // 7) + 1
+    except Exception:
+        return 1
+
+def _is_week_valid(week: int, week_range: str) -> bool:
+    if not week_range:
+        return True
+    try:
+        parts = week_range.split(',')
+        for part in parts:
+            if '-' in part:
+                start, end = map(int, part.split('-'))
+                if start <= week <= end:
+                    return True
+            else:
+                if int(part) == week:
+                    return True
+    except:
+        pass
+    return False
 
 async def _current_period() -> int:
     h = datetime.now().hour
@@ -27,13 +56,21 @@ async def _get_primary_binding(account_id: ObjectId) -> Dict[str, Any]:
     return b
  
 async def _get_student_entity(account_id: ObjectId, binding: Dict[str, Any]) -> Dict[str, Any]:
-    s = await db.db.students.find_one({"person_id": binding.get("person_id")})
+    pid = binding.get("person_id")
+    if isinstance(pid, str) and ObjectId.is_valid(pid):
+        pid = ObjectId(pid)
+        
+    s = await db.db.students.find_one({"person_id": pid})
     if s:
         return s
     raise HTTPException(status_code=404, detail="未找到学生实体")
  
 async def _get_teacher_entity(account_id: ObjectId, binding: Dict[str, Any]) -> Dict[str, Any]:
-    t = await db.db.teachers.find_one({"person_id": binding.get("person_id")})
+    pid = binding.get("person_id")
+    if isinstance(pid, str) and ObjectId.is_valid(pid):
+        pid = ObjectId(pid)
+
+    t = await db.db.teachers.find_one({"person_id": pid})
     if t:
         return t
     raise HTTPException(status_code=404, detail="未找到教师实体")
@@ -95,6 +132,63 @@ async def student_today_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
         "today_schedule": schedules,
         "today_attendance": attendance,
         "today_conduct": conduct,
+    }
+
+async def student_week_schedule(current_user: Dict[str, Any], week: int = None) -> Dict[str, Any]:
+    if week is None:
+        week = await _get_current_week()
+    
+    student = await _get_student_by_user(current_user["_id"])
+    class_id = student.get("class_id") if student else None
+    
+    try:
+        start_date = datetime.strptime(settings.TERM_START_DATE, "%Y-%m-%d").date()
+        monday_of_week = start_date + timedelta(weeks=week-1)
+    except:
+        monday_of_week = datetime.now().date()
+    
+    week_dates = {}
+    for i in range(1, 8):
+        d = monday_of_week + timedelta(days=i-1)
+        week_dates[i] = d.isoformat()
+
+    schedules_by_day = {str(i): [] for i in range(1, 8)}
+    
+    if class_id:
+        cursor = db.db.schedules.find({"classes.class_id": class_id}).sort("period", 1)
+        async for doc in cursor:
+            w_range = doc.get("week_range", "")
+            if not _is_week_valid(week, w_range):
+                continue
+                
+            wd = doc.get("weekday")
+            loc = None
+            for c in doc.get("classes", []):
+                if c.get("class_id") == class_id:
+                    loc = c.get("location")
+                    break
+            
+            item = {
+                "lesson_id": doc.get("lesson_id"),
+                "period": doc.get("period"),
+                "course_name": doc.get("course_name"),
+                "location": loc,
+                "start_time": doc.get("start_time"),
+                "end_time": doc.get("end_time"),
+                "teacher_person_id": str(doc.get("teacher_person_id")) if doc.get("teacher_person_id") else None
+            }
+            if str(wd) in schedules_by_day:
+                schedules_by_day[str(wd)].append(item)
+
+    return {
+        "student": {
+            "student_id": student.get("student_id") if student else None,
+            "name": student.get("name") if student else None,
+            "class_id": class_id,
+        },
+        "current_week": week,
+        "week_dates": week_dates,
+        "schedule": schedules_by_day
     }
 
 async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
