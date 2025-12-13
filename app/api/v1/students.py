@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Body
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from app.api.deps import require_edition_for_mode, require_role
-from app.services.student_binding import bind_user_to_student, unbind_user_from_student, get_student_by_user
+from app.services.student_binding import bind_user_to_student, unbind_user_from_student
+from app.services.dashboard import _get_student_by_user
 
 router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
 
@@ -61,8 +62,13 @@ async def unbind(student_id: str = Path(..., description="学生ID"), current_us
     },
 )
 async def me(current_user: dict = Depends(require_role(1))) -> StudentOut:
-    s = await get_student_by_user(str(current_user["_id"]))
-    if not s:
-        raise HTTPException(status_code=404, detail="当前用户未绑定学生")
-    s["_id"] = str(s["_id"])  # 简化返回
-    return s
+    try:
+        s = await _get_student_by_user(current_user["_id"])
+        if not s:
+            raise HTTPException(status_code=404, detail="当前用户未绑定学生")
+        s["_id"] = str(s["_id"])
+        return s
+    except HTTPException as e:
+        if e.status_code == 404:
+            raise HTTPException(status_code=404, detail="当前用户未绑定学生")
+        raise e

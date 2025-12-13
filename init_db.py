@@ -594,6 +594,25 @@ async def seed_identity_data(db, mode: str):
     if user_doc:
         p = find_person("P-STU-USER")
         bindings.append({"account_id": user_doc["_id"], "person_id": p["_id"], "type": "student", "primary": True})
+        
+        # 修复：为默认用户创建关联的学生实体，防止 /students/me 404
+        # 注意：P-STU-USER 是人物，这里需要一个对应的 student 实体指向它
+        existing_stu = await db.students.find_one({"person_id": p["_id"]})
+        if not existing_stu:
+            await db.students.insert_one({
+                "student_id": "STU-USER-001",
+                "name": "默认学生USER",
+                "gender": "男",
+                "grade": "22级",
+                "major": "软件技术",
+                "class_id": "SW22-1", # 默认分到 1 班
+                "status": "在读",
+                "person_id": p["_id"],
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
+            })
+            print("已为默认用户 user 创建关联学生实体")
+
     if manager_doc:
         p = find_person("P-TEA-001")
         bindings.append({"account_id": manager_doc["_id"], "person_id": p["_id"], "type": "teacher", "primary": True})
