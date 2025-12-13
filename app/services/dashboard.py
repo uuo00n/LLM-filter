@@ -205,6 +205,9 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     teacher = await _get_teacher_entity(current_user["_id"], binding)
     teacher_person_id = teacher.get("person_id")
     
+    if isinstance(teacher_person_id, str) and ObjectId.is_valid(teacher_person_id):
+        teacher_person_id = ObjectId(teacher_person_id)
+        
     classes = []
     # 使用 person_id 查询班级
     cursor = db.db.classes.find({"head_teacher_person_id": teacher_person_id})
@@ -255,7 +258,7 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     async for d in cursor:
         directives.append({
             "content": d.get("content"),
-            "created_at": d.get("created_at"),
+            "created_at": d.get("created_at").isoformat() if isinstance(d.get("created_at"), datetime) else d.get("created_at"),
         })
 
     return {
