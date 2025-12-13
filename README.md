@@ -74,6 +74,9 @@ MANAGER_EDU_PASSWORD=manager123
 LEADER_EDU_PASSWORD=leader123
 MASTER_EDU_PASSWORD=master123
 # 企业版对应：ADMIN_BIZ_PASSWORD/USER_BIZ_PASSWORD/MANAGER_BIZ_PASSWORD/LEADER_BIZ_PASSWORD/MASTER_BIZ_PASSWORD
+
+# 学期配置
+TERM_START_DATE=2025-09-01
 ```
 生成强随机密钥（二选一）：
 ```bash
@@ -175,6 +178,8 @@ USER_EDU_PASSWORD=user123
 MANAGER_EDU_PASSWORD=manager123
 LEADER_EDU_PASSWORD=leader123
 MASTER_EDU_PASSWORD=master123
+
+TERM_START_DATE=2025-09-01
 "@ | Out-File -Encoding UTF8 .env
 
 # 生成强随机密钥并替换上面的 SECRET_KEY
@@ -381,6 +386,9 @@ curl -X POST "http://localhost:8000/api/v1/admin/sensitive-words/import" \
 - 课表管理（/schedules）
   - PUT `/api/v1/schedules/assign-teacher` 设置 `teacher_person_id`
   - GET `/api/v1/schedules` 列出共享节次（含各班 `location`）
+- 仪表盘（/dashboard）
+  - GET `/api/v1/dashboard/student/week` 查询学生周课表（新增）
+  - GET `/api/v1/dashboard/teacher/week` 查询教师周课表（新增）
 
 ---
 
