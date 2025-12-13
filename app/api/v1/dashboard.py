@@ -5,6 +5,7 @@ from app.api.deps import require_edition_for_mode, require_role, require_binding
 from app.services.dashboard import (
     student_today_summary,
     student_week_schedule,
+    teacher_week_schedule,
     homeroom_current_summary,
     department_overview,
     campus_overview,
@@ -49,6 +50,20 @@ class StudentWeekSummary(BaseModel):
     current_week: int
     week_dates: Dict[int, str]
     schedule: Dict[str, List[StudentWeekScheduleItem]]
+
+class TeacherWeekScheduleItem(BaseModel):
+    lesson_id: Optional[str] = None
+    period: Optional[int] = None
+    course_name: Optional[str] = None
+    classes: List[Dict[str, Optional[str]]] = []
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+class TeacherWeekSummary(BaseModel):
+    teacher: Dict[str, Optional[str]]
+    current_week: int
+    week_dates: Dict[int, str]
+    schedule: Dict[str, List[TeacherWeekScheduleItem]]
 
 class HomeroomLesson(BaseModel):
     class_id: Optional[str]
@@ -130,6 +145,23 @@ async def student_week(
     _b: dict = Depends(require_binding("student"))
 ) -> StudentWeekSummary:
     return await student_week_schedule(current_user, week)
+
+@router.get(
+    "/teacher/week",
+    summary="教师端：周课表查询",
+    description="需角色等级≥2且主绑定为教师；返回指定周次（默认当前周）的任课课表（包含上课班级与地点）。",
+    response_model=TeacherWeekSummary,
+    responses={
+        401: {"description": "未认证", "content": {"application/json": {"example": {"detail": "无效的认证凭据"}}}},
+        403: {"description": "权限不足或未绑定教师", "content": {"application/json": {"example": {"detail": "实体绑定不存在或类型不匹配"}}}},
+    }
+)
+async def teacher_week(
+    week: Optional[int] = Query(None, description="周次（如 1, 2, ...），不传则默认为当前周"),
+    current_user: dict = Depends(require_role(2)),
+    _b: dict = Depends(require_binding("teacher"))
+) -> TeacherWeekSummary:
+    return await teacher_week_schedule(current_user, week)
 
 @router.get(
     "/homeroom/current",

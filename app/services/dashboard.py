@@ -191,6 +191,82 @@ async def student_week_schedule(current_user: Dict[str, Any], week: int = None) 
         "schedule": schedules_by_day
     }
 
+async def teacher_week_schedule(current_user: Dict[str, Any], week: int = None) -> Dict[str, Any]:
+    if week is None:
+        week = await _get_current_week()
+        
+    binding = await _get_primary_binding(current_user["_id"])
+    if binding.get("type") != "teacher":
+        raise HTTPException(status_code=403, detail="当前绑定非教师")
+        
+    teacher = await _get_teacher_entity(current_user["_id"], binding)
+    teacher_person_id = teacher.get("person_id")
+    
+    # 确保类型匹配
+    if isinstance(teacher_person_id, str) and ObjectId.is_valid(teacher_person_id):
+        teacher_person_id = ObjectId(teacher_person_id)
+
+    try:
+        start_date = datetime.strptime(settings.TERM_START_DATE, "%Y-%m-%d").date()
+        monday_of_week = start_date + timedelta(weeks=week-1)
+    except:
+        monday_of_week = datetime.now().date()
+        
+    week_dates = {}
+    for i in range(1, 8):
+        d = monday_of_week + timedelta(days=i-1)
+        week_dates[i] = d.isoformat()
+        
+    schedules_by_day = {str(i): [] for i in range(1, 8)}
+    
+    # 查询该教师的所有课程
+    # 注意：teacher_person_id 在 schedules 中可能是 ObjectId 也可能是字符串，视具体数据而定
+    # 为稳妥起见，如果 teacher_person_id 是 ObjectId，也可以尝试转字符串匹配，或者由数据库层面保证一致性
+    # 这里我们使用 $in 查询来兼容
+    query_ids = [teacher_person_id]
+    if isinstance(teacher_person_id, ObjectId):
+        query_ids.append(str(teacher_person_id))
+    
+    cursor = db.db.schedules.find({"teacher_person_id": {"$in": query_ids}}).sort("period", 1)
+    
+    async for doc in cursor:
+        w_range = doc.get("week_range", "")
+        if not _is_week_valid(week, w_range):
+            continue
+            
+        wd = doc.get("weekday")
+        
+        # 提取班级和地点信息
+        classes_info = []
+        for c in doc.get("classes", []):
+            classes_info.append({
+                "class_id": c.get("class_id"),
+                "location": c.get("location")
+            })
+            
+        item = {
+            "lesson_id": doc.get("lesson_id"),
+            "period": doc.get("period"),
+            "course_name": doc.get("course_name"),
+            "classes": classes_info,
+            "start_time": doc.get("start_time"),
+            "end_time": doc.get("end_time")
+        }
+        
+        if str(wd) in schedules_by_day:
+            schedules_by_day[str(wd)].append(item)
+            
+    return {
+        "teacher": {
+            "teacher_id": teacher.get("teacher_id"),
+            "name": teacher.get("name"), # 注意：teacher表可能没有name，通常在person表
+            "person_id": str(teacher.get("person_id"))
+        },
+        "current_week": week,
+        "week_dates": week_dates,
+        "schedule": schedules_by_day
+    }
+
 async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, Any]:
     today = await _today_iso()
     weekday = await _weekday()
