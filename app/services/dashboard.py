@@ -196,9 +196,18 @@ async def homeroom_current_summary(current_user: Dict[str, Any]) -> Dict[str, An
     weekday = await _weekday()
     period = await _current_period()
     current_lesson_id = f"W{weekday}-P{period}"
-    uid = ObjectId(current_user["_id"])
+    
+    # 获取当前用户的教师绑定信息
+    binding = await _get_primary_binding(current_user["_id"])
+    if binding.get("type") != "teacher":
+        raise HTTPException(status_code=403, detail="当前绑定非教师")
+        
+    teacher = await _get_teacher_entity(current_user["_id"], binding)
+    teacher_person_id = teacher.get("person_id")
+    
     classes = []
-    cursor = db.db.classes.find({"head_teacher_person_id": uid})
+    # 使用 person_id 查询班级
+    cursor = db.db.classes.find({"head_teacher_person_id": teacher_person_id})
     async for c in cursor:
         classes.append(c)
     class_ids = [c.get("class_id") for c in classes]
