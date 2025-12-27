@@ -13,4 +13,8 @@ public class UserContext {
     private Long userId;
     private String username;
     private String role;
+    private String personId;
+    private String personType;
+    private String edition;
+    private Integer roleLevel;
 }

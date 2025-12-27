@@ -59,18 +59,37 @@ public class JwtAuthenticationFilter implements Filter {
 
                 Long userId = claims.get("user_id", Long.class);
                 // 注意：JWT 中的 user_id 有时是 number 有时是 string，取决于生成逻辑
-                // 这里做一个兼容处理
-                if (userId == null && claims.get("user_id") != null) {
-                     userId = Long.valueOf(claims.get("user_id").toString());
+                // 兼容处理：如果 sub 是 ID 形式，优先使用 sub
+                if (userId == null) {
+                    try {
+                        userId = Long.valueOf(claims.getSubject());
+                    } catch (NumberFormatException e) {
+                        // sub 不是数字 ID，可能是用户名
+                        if (claims.get("user_id") != null) {
+                            userId = Long.valueOf(claims.get("user_id").toString());
+                        }
+                    }
                 }
                 
-                String username = claims.getSubject(); // sub is username
+                String username = claims.get("name", String.class);
+                if (username == null) {
+                    username = claims.getSubject();
+                }
+                
                 String role = claims.get("role", String.class);
+                String personId = claims.get("person_id", String.class);
+                String personType = claims.get("person_type", String.class);
+                String edition = claims.get("edition", String.class);
+                Integer roleLevel = claims.get("role_level", Integer.class);
 
                 UserContext userContext = UserContext.builder()
                         .userId(userId)
                         .username(username)
                         .role(role)
+                        .personId(personId)
+                        .personType(personType)
+                        .edition(edition)
+                        .roleLevel(roleLevel)
                         .build();
 
                 UserContextHolder.setContext(userContext);

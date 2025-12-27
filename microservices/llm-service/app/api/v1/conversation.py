@@ -31,7 +31,7 @@ router = APIRouter(dependencies=[Depends(require_edition_for_mode())])
     },
 )
 async def create_new_conversation(current_user: dict = Depends(get_current_active_user)):
-    conversation_id = await create_conversation(str(current_user["_id"]))
+    conversation_id = await create_conversation(str(current_user["id"]))
     return {"id": conversation_id}
 
 @router.get(
@@ -44,7 +44,7 @@ async def create_new_conversation(current_user: dict = Depends(get_current_activ
     },
 )
 async def list_conversations(current_user: dict = Depends(get_current_active_user)):
-    conversations = await get_user_conversations(str(current_user["_id"]))
+    conversations = await get_user_conversations(str(current_user["id"]))
     return conversations
 
 @router.get(
@@ -61,7 +61,7 @@ async def get_single_conversation(
     conversation_id: str = Path(..., description="对话ID"),
     current_user: dict = Depends(get_current_active_user)
 ):
-    conversation = await get_conversation(conversation_id, str(current_user["_id"]))
+    conversation = await get_conversation(conversation_id, str(current_user["id"]))
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -83,7 +83,7 @@ async def remove_conversation(
     conversation_id: str = Path(..., description="对话ID"),
     current_user: dict = Depends(get_current_active_user)
 ):
-    ok = await delete_conversation(conversation_id, str(current_user["_id"]))
+    ok = await delete_conversation(conversation_id, str(current_user["id"]))
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="对话不存在或无权限")
     return {"deleted": True, "message": "删除成功"}
@@ -104,7 +104,7 @@ async def send_message(
     current_user: dict = Depends(get_current_active_user)
 ):
     # 检查对话是否存在
-    conversation = await get_conversation(conversation_id, str(current_user["_id"]))
+    conversation = await get_conversation(conversation_id, str(current_user["id"]))
     if not conversation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -112,6 +112,6 @@ async def send_message(
         )
     
     # 添加消息并获取回复
-    result = await add_message(conversation_id, str(current_user["_id"]), message.content)
+    result = await add_message(conversation_id, str(current_user["id"]), message.content)
     
     return result

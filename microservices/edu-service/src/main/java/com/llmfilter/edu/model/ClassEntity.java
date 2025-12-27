@@ -16,13 +16,19 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "classes")
-public class ClassEntity {
+public class ClassEntity implements java.io.Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "class_id", unique = true, nullable = false)
     private String classId; // 业务上的班级ID，如 "2023-01"
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column
+    private String major;
 
     @Column(name = "head_teacher_person_id")
     private String headTeacherPersonId; // 班主任人物ID（指向 Teacher.personId）

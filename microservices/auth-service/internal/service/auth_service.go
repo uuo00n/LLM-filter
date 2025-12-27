@@ -8,11 +8,15 @@ import (
 )
 
 type AuthService struct {
-	repo *repository.UserRepository
+	repo        *repository.UserRepository
+	bindingRepo *repository.BindingRepository
 }
 
-func NewAuthService(repo *repository.UserRepository) *AuthService {
-	return &AuthService{repo: repo}
+func NewAuthService(repo *repository.UserRepository, bindingRepo *repository.BindingRepository) *AuthService {
+	return &AuthService{
+		repo:        repo,
+		bindingRepo: bindingRepo,
+	}
 }
 
 // RegisterRequest 注册请求参数
@@ -81,7 +85,16 @@ func (s *AuthService) Login(req *LoginRequest) (string, *model.User, error) {
 		return "", nil, errors.New("invalid username or password")
 	}
 
-	token, err := utils.GenerateToken(user.ID, user.Username, user.Role)
+	// 获取用户的主绑定信息
+	var personID string
+	var personType string
+	binding, err := s.bindingRepo.FindPrimaryByUserID(user.ID)
+	if err == nil && binding != nil {
+		personID = binding.PersonID
+		personType = binding.Type
+	}
+
+	token, err := utils.GenerateToken(user.ID, user.Username, user.Role, user.RoleLevel, user.Edition, personID, personType)
 	if err != nil {
 		return "", nil, err
 	}

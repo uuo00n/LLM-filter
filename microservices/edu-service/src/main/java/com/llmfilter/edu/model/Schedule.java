@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "schedules")
-public class Schedule {
+public class Schedule implements java.io.Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -38,7 +38,7 @@ public class Schedule {
 
     // 存储班级信息的 JSON 字符串 (简化处理，实际生产建议用关联表)
     // Python code: classes: List[Dict[str, Any]]
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "classes", columnDefinition = "jsonb")
     private String classesJson; 
 
     @CreationTimestamp

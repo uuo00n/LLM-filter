@@ -33,13 +33,17 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 // GenerateToken 生成 JWT Token
-func GenerateToken(userID uint, username string, role string) (string, error) {
+func GenerateToken(userID uint, username string, role string, roleLevel int, edition string, personID string, personType string) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":  userID,
-		"name": username,
-		"role": role,
-		"exp":  time.Now().Add(time.Hour * 24).Unix(), // 24小时过期
-		"iat":  time.Now().Unix(),
+		"sub":         userID,
+		"name":        username,
+		"role":        role,
+		"role_level":  roleLevel,
+		"edition":     edition,
+		"person_id":   personID,
+		"person_type": personType,
+		"exp":         time.Now().Add(time.Hour * 24).Unix(), // 24小时过期
+		"iat":         time.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

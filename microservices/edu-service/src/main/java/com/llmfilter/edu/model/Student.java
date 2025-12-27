@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "students")
-public class Student {
+public class Student implements java.io.Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,6 +26,9 @@ public class Student {
 
     @Column(nullable = false)
     private String name;
+
+    @Column(name = "person_id", unique = true)
+    private String personId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id", referencedColumnName = "class_id")

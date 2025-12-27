@@ -14,7 +14,7 @@ async def create_conversation(user_id: str) -> str:
     - 新建对话的字符串 ID
     """
     conversation = {
-        "user_id": ObjectId(user_id),
+        "user_id": user_id,
         "title": f"新会话 {datetime.now().strftime('%m-%d %H:%M')}",
         "messages": [],
         "created_at": datetime.now(),
@@ -35,7 +35,7 @@ async def get_conversation(conversation_id: str, user_id: str) -> Optional[Dict]
     """
     conversation = await db.db.conversations.find_one({
         "_id": ObjectId(conversation_id),
-        "user_id": ObjectId(user_id)
+        "user_id": user_id
     })
     
     if not conversation:
@@ -97,7 +97,7 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
     # 预取对话用于判断是否首次消息与标题更新
     conversation = await db.db.conversations.find_one({
         "_id": ObjectId(conversation_id),
-        "user_id": ObjectId(user_id)
+        "user_id": user_id
     })
     if not conversation:
         raise ValueError("对话不存在或无权限")
@@ -168,7 +168,7 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
 
         # 创建敏感词记录（包含详细信息）
         sensitive_record = {
-            "user_id": ObjectId(user_id),
+            "user_id": user_id,
             "conversation_id": ObjectId(conversation_id),
             "message_content": content,
             "sensitive_words_found": detailed_words,
@@ -246,7 +246,7 @@ async def get_user_conversations(user_id: str) -> List[Dict]:
     - 对话字典列表（每项仅含最近一条 messages）
     """
     conversations: List[Dict[str, Any]] = []
-    cursor = db.db.conversations.find({"user_id": ObjectId(user_id)}).sort("updated_at", -1)
+    cursor = db.db.conversations.find({"user_id": user_id}).sort("updated_at", -1)
     
     async for c in cursor:
         c_id = str(c["_id"])
@@ -293,7 +293,7 @@ async def delete_conversation(conversation_id: str, user_id: str) -> bool:
     返回：
     - 是否删除成功（True/False）
     """
-    filter_cond = {"_id": ObjectId(conversation_id), "user_id": ObjectId(user_id)}
+    filter_cond = {"_id": ObjectId(conversation_id), "user_id": user_id}
     del_res = await db.db.conversations.delete_one(filter_cond)
     if del_res.deleted_count != 1:
         return False

@@ -73,12 +73,12 @@ func main() {
 	// 初始化管理员账号
 	initAdminUser(userRepo)
 
-	authSvc := service.NewAuthService(userRepo)
-	authHandler := handler.NewAuthHandler(authSvc)
-
 	bindingRepo := repository.NewBindingRepository(db)
 	bindingSvc := service.NewBindingService(bindingRepo)
 	bindingHandler := handler.NewBindingHandler(bindingSvc)
+
+	authSvc := service.NewAuthService(userRepo, bindingRepo)
+	authHandler := handler.NewAuthHandler(authSvc)
 
 	r := gin.Default()
 
