@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama2")
 
+    # Dify配置
+    DIFY_API_URL: str = os.getenv("DIFY_API_URL", "http://datacenter.dldzxx.cn:8089/v1")
+    DIFY_API_KEY: str = os.getenv("DIFY_API_KEY", "app-lkK33EQOVXXrjD9x3SKbItr7")
+    DIFY_RESPONSE_MODE: str = os.getenv("DIFY_RESPONSE_MODE", "streaming")
+    DIFY_MESSAGE_ENDPOINT: str = os.getenv("DIFY_MESSAGE_ENDPOINT", "chat-messages")
+
     # 应用运行模式开关：仅运行教育版或企业版之一
     # 允许的值："edu" / "biz"；若未设置则默认使用 "edu"
     # 注意：不再提供混合模式（mixed），如需混合请显式设置并在依赖中放行

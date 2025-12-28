@@ -11,12 +11,11 @@ app = FastAPI(
     version="1.0.0",
     description=(
         "LLM 过滤系统后端接口\n\n"
-        "本服务仅包含 LLM 对话、敏感词管理与仪表盘功能。\n"
+        "本服务仅包含 LLM 对话与敏感词管理功能。\n"
         "认证与用户管理请访问 Auth Service (8081)。\n"
         "教务数据管理请访问 Edu Service (8082)。"
     ),
     openapi_tags=[
-        {"name": "仪表盘", "description": "AI 使用统计看板"},
         {"name": "管理员", "description": "管理员功能（敏感词、分类等）"},
         {"name": "对话", "description": "对话与敏感词审计接口"},
     ],

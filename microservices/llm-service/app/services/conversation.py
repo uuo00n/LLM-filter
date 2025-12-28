@@ -4,6 +4,7 @@ from bson import ObjectId
 from app.db.mongodb import db
 from app.services.ollama import generate_response
 from app.utils.sensitive_word_filter import sensitive_word_filter
+from app.services.dify import dify_service
 
 async def create_conversation(user_id: str) -> str:
     """创建新对话
@@ -110,6 +111,28 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
     contains_sensitive = check_result["contains_sensitive_words"]
     sensitive_words = check_result["sensitive_words_found"]
     highest_severity = check_result["highest_severity"]
+
+    # Dify 智能体二次过滤（仅当本地过滤通过时执行）
+    if not contains_sensitive:
+        dify_result = await dify_service.check_content_safety(content, user_id)
+        if not dify_result["safe"]:
+            contains_sensitive = True
+            dify_reason = dify_result.get("reason", "智能体识别为不安全内容")
+            dify_suggestion = dify_result.get("suggestion", "")
+            highest_severity = 4  # 设定为较高严重程度
+            
+            # 构造一个虚拟的敏感词信息添加到列表
+            # 注意：sensitive_words 是一个列表，我们需要确保它是可变的
+            if sensitive_words is None:
+                sensitive_words = []
+            
+            sensitive_words.append({
+                "word": "智能体拦截",
+                "category": "智能检测",
+                "subcategory": dify_reason,
+                "severity": 4,
+                "extra_info": dify_suggestion
+            })
 
     # 详细敏感词信息（用于响应与审计）
     detailed_words: List[Dict[str, Any]] = []
