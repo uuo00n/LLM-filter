@@ -1,10 +1,10 @@
-# LLM-Filter 智能对话过滤系统 (Microservices)
+# LLM-Filter 智能对话过滤系统
 
 一个面向教育与企业双场景的智能对话过滤系统，基于 **微服务架构** 重构，集成了高效敏感词过滤、严格的角色与版别控制、以及完善的教务/企业数据管理。
 
 系统采用 **Go (认证)** + **Java (教务)** + **Python (LLM)** 的混合技术栈，充分发挥各语言优势，通过 **Docker Compose** 统一编排部署。
 
-## 🏗 系统架构
+## 系统架构
 
 本项目包含以下核心服务，通过 **Gateway (Nginx)** 统一对外暴露：
 
@@ -12,15 +12,15 @@
 | :--- | :--- | :--- | :--- |
 | **Gateway** | Nginx | 8080 | 统一 API 网关，负责请求路由转发与跨域处理 |
 | **Auth Service** | Go (Gin) | 8081 | 用户注册、登录、JWT 签发、绑定管理 |
-| **Edu Service** | Java (Spring Boot) | 8082 | 教务/业务核心服务（学生、教师、班级、课表等） |
-| **LLM Service** | Python (FastAPI) | 8000 | 智能对话、敏感词过滤、审计日志、数据看板 |
+| **Edu Service** | Java (Spring Boot) | 8082 | 教务/业务核心服务（班级、人员、教师、课表、看板等） |
+| **LLM Service** | Python (FastAPI) | 8000 | 智能对话、敏感词过滤、审计日志、敏感词管理 |
 
 ### 基础设施
 - **PostgreSQL**: 存储用户账户、角色信息及教务核心结构化数据。
 - **MongoDB**: 存储非结构化数据，如对话历史、敏感词库、审计日志、部分教务冗余数据。
 - **Ollama**: 本地大模型推理引擎（需单独部署或配置）。
 
-## ✨ 功能亮点
+## 功能概览
 
 - **微服务设计**: 各模块职责单一，支持独立部署与扩展，降低耦合。
 - **多语言融合**: 
@@ -31,97 +31,98 @@
 - **安全过滤**: 内置高效 Trie 树敏感词过滤，支持实时热更新，保障合规。
 - **角色权限**: 精细化的 RBAC 权限控制（学生/教师/管理员等）及版别控制（教育版/企业版）。
 
-## 🚀 快速开始
+## 模块详解
 
-### 1. 前置要求
-- **Docker** & **Docker Compose**
-- **Ollama** (建议在本机安装并运行，默认端口 11434)
+### Gateway（Nginx）
 
-### 2. 配置环境
-在项目根目录创建 `.env` 文件（可参考以下模板）：
+- **统一入口**：对外只暴露一个入口，由网关按路径将请求转发到各后端服务。
+- **路由转发**：
+  - 认证服务：`/api/v1/auth/*`、`/api/v1/bindings/*`
+  - 教务服务：`/api/v1/classes/*`、`/api/v1/persons/*`、`/api/v1/teachers/*`、`/api/v1/schedules/*`、`/api/v1/dashboard/*`、`/api/v1/edu/*`
+  - LLM 服务：其余路径默认转发（包含 `/docs`、`/api/v1/*` 等）
+- **跨域与压缩**：统一设置 CORS 响应头与 gzip，减少前端对接成本。
 
-```bash
-# === 数据库配置 ===
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=password
-POSTGRES_DB=llm_filter_db
-MONGODB_URL=mongodb://mongo:27017
+### Auth Service（Go / Gin）
 
-# === JWT 安全配置 ===
-# 必须生成强随机密钥（建议 32 字节以上）
-JWT_SECRET=llm_filter_secure_secret_key_2025_update_must_be_32_bytes
-# Auth Service 使用 JWT_SECRET, LLM Service 使用 SECRET_KEY (需保持一致)
-SECRET_KEY=llm_filter_secure_secret_key_2025_update_must_be_32_bytes
+- **注册登录**：
+  - `POST /api/v1/auth/register`：注册用户（默认 `role=user`，`edition=edu`）
+  - `POST /api/v1/auth/login`：登录并签发 JWT，响应包含 `token` 与 `user`
+- **账号与安全**：
+  - 密码使用 bcrypt 加密存储
+  - JWT 使用 HS256 对称签名（由 `JWT_SECRET` 控制密钥）
+- **身份绑定（Binding）**：用于将“账号”绑定到具体业务身份（如学生/教师）：
+  - `POST /api/v1/bindings`：创建绑定
+  - `GET /api/v1/bindings/me`：获取当前用户主绑定
+  - `DELETE /api/v1/bindings/{person_id}`：解绑
+- **JWT 载荷（Claims）**：服务在签发 Token 时会携带下列字段，供下游服务直接做本地鉴权：
+  - `sub`（用户ID）、`name`（用户名）、`role`、`role_level`、`edition`、`person_id`、`person_type`
 
-# === Ollama 配置 ===
-# Docker 容器访问宿主机 Ollama 服务
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=deepseek-r1:14b
+### Edu Service（Java / Spring Boot）
 
-# === 应用模式 ===
-# edu (教育版) / biz (企业版)
-APP_MODE=edu
-```
+- **基础数据管理**：
+  - 班级与班主任：`GET /api/v1/classes`、`PUT /api/v1/classes/{classId}/head-teacher`
+  - 人员信息：`POST /api/v1/persons/bulk`、`GET /api/v1/persons`
+  - 教师信息：`POST /api/v1/teachers/bulk`、`GET /api/v1/teachers`
+  - 课表与任课教师：`GET /api/v1/schedules`、`PUT /api/v1/schedules/assign-teacher`
+- **看板能力（按角色输出不同视图）**：
+  - 学生：`/api/v1/dashboard/student/today`、`/api/v1/dashboard/student/week`
+  - 教师：`/api/v1/dashboard/teacher/week`
+  - 班主任：`/api/v1/dashboard/homeroom/current`
+  - 部门负责人：`/api/v1/dashboard/department/overview`
+  - 校级管理：`/api/v1/dashboard/campus/overview`
+- **JWT 本地解析**：通过 `JwtAuthenticationFilter` 解析 `Authorization: Bearer <token>`，将用户信息写入 `UserContext`，业务层可直接读取当前用户身份。
 
-### 3. 启动服务
-使用 Docker Compose 一键构建并启动所有服务：
+### LLM Service（Python / FastAPI）
 
-```bash
-docker-compose up -d --build
-```
+- **对话管理**：
+  - `POST /api/v1/conversations`：创建会话
+  - `GET /api/v1/conversations`：获取会话列表（列表场景仅返回最近一条消息以降低负载）
+  - `GET /api/v1/conversations/{conversation_id}`：获取会话详情
+  - `DELETE /api/v1/conversations/{conversation_id}`：删除会话
+- **对话发送与过滤链路**：`POST /api/v1/conversations/{conversation_id}/messages`
+  - 本地 Trie 过滤：使用内存 Trie 对用户输入做敏感词匹配
+  - 智能体二次过滤（可选）：本地过滤通过后，可调用 Dify 智能体做内容安全复核
+  - 审计留痕：命中敏感内容会写入 `sensitive_records`，并在会话消息中记录命中详情
+  - 生成回复：未命中敏感内容时调用 Ollama 生成回复
+- **敏感词与审计管理（管理员）**：
+  - 敏感词：新增/删除/查询、批量导入（JSON/CSV）
+  - 命中记录：按用户、会话、时间范围、分类、严重程度筛选
+  - 分类管理：提供默认分类配置并支持扩展
 
-等待几分钟，直到所有容器启动完成。
+## 角色等级与权限控制
 
-### 4. 访问服务
-系统统一入口为 **http://localhost:8080**。
+系统使用“角色等级（role_level）”统一描述权限强弱，数字越大权限越高：
 
-#### 📝 API 文档 (Swagger/OpenAPI)
-各微服务均提供了在线文档，可通过网关直接访问：
+| 角色 | 等级 | 典型含义 |
+| :--- | :---: | :--- |
+| user | 1 | 学生/员工 |
+| manager | 2 | 班主任/组长/二级部门管理员 |
+| leader | 3 | 中层干部/部门负责人/一级部门管理员 |
+| master | 4 | 校长/集团高管/业务最高负责人 |
+| administrator / admin | 5 | 系统管理员/运维超管（系统最高） |
 
-- **Auth Service 文档**: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html)
-- **Edu Service 文档**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-- **LLM Service 文档**: [http://localhost:8080/docs](http://localhost:8080/docs)
+亮点与落地方式：
 
-#### 🔌 主要 API 路由
-- **认证相关**: `/api/v1/auth/*` (登录、注册)
-- **绑定管理**: `/api/v1/bindings/*` (用户-实体绑定)
-- **教务管理**: 
-  - `/api/v1/edu/*` (综合业务)
-  - `/api/v1/classes/*` (班级)
-  - `/api/v1/persons/*` (人员档案)
-  - `/api/v1/teachers/*` (教师管理)
-  - `/api/v1/schedules/*` (课表)
-- **对话与看板**: 
-  - `/api/v1/conversations/*` (AI 对话)
-  - `/api/v1/dashboard/*` (数据看板)
-  - `/api/v1/admin/*` (敏感词管理)
+- **跨服务一致性**：Auth 在签发 JWT 时写入 `role`/`role_level`，下游服务本地解析后即可做鉴权，不依赖回源查询。
+- **最小权限校验**：LLM 服务提供 `require_role(min_level)` 依赖工厂，用“最小等级”表达权限门槛，避免到处硬编码角色字符串。
+- **管理员能力隔离**：LLM 管理类接口统一走管理员校验（兼容 `admin` 与 `administrator` 两种命名）。
 
-## 🛠 开发指南
+## 版别控制（教育版 / 企业版）
 
-### 目录结构
-```
-llm-filter/
-├── gateway/                # Nginx 网关配置
-├── microservices/
-│   ├── auth-service/       # [Go] 认证服务
-│   │   ├── internal/       # 业务逻辑
-│   │   └── main.go         # 入口文件
-│   ├── edu-service/        # [Java] 教务服务
-│   │   └── src/main/java/  # Spring Boot 源码
-│   └── llm-service/        # [Python] LLM与过滤服务
-│       └── app/            # FastAPI 源码
-├── docker-compose.yml      # 容器编排文件
-└── README.md               # 项目文档
-```
+- **版别字段**：用户与 Token 可携带 `edition`（`edu` 或 `biz`）。
+- **运行模式开关**：LLM 服务通过 `APP_MODE` 限制接口仅允许对应版别用户访问（在路由层统一挂载依赖，减少遗漏风险）。
 
-### 本地独立开发
-若需单独开发某个微服务，请参考各子目录下的 README 或直接运行：
+## 数据存储与审计
 
-- **Auth Service**: 进入 `microservices/auth-service`，运行 `go run main.go`
-- **Edu Service**: 进入 `microservices/edu-service`，运行 `mvn spring-boot:run`
-- **LLM Service**: 进入 `microservices/llm-service`，运行 `uvicorn app.main:app --reload`
+- **PostgreSQL（结构化）**：用户账号、角色/版别、教务核心实体（班级/人员/教师/课表等）。
+- **MongoDB（非结构化）**：
+  - `conversations`：对话会话与消息历史
+  - `sensitive_words`：敏感词库（含分类、子类、严重程度）
+  - `sensitive_records`：敏感命中审计记录（按用户/会话/时间/严重程度可检索）
 
-*注意：本地独立运行时需确保依赖的数据库（Postgres/Mongo）已启动并配置正确的连接地址。*
+## 文档
+- 启动与本地开发：见 [DEVELOPMENT.md](file:///Users/uu/Desktop/dles_prj/llm-filter/DEVELOPMENT.md)
+- 默认账号与初始化数据：见 [ACCOUNTS.md](file:///Users/uu/Desktop/dles_prj/llm-filter/ACCOUNTS.md)
 
-## 📄 许可证
+## 许可证
 MIT License

@@ -1,28 +1,14 @@
-# 🚀 LLM Filter 项目开发与启动指南
+# LLM Filter 项目启动与开发指南
 
-本文档旨在帮助开发人员快速搭建环境、启动服务并参与开发。本项目采用微服务架构，包含 Auth (Go), Edu (Java), LLM (Python) 三大核心服务。
-
----
-
-## 🏗️ 架构概览
-
-| 服务名称 | 端口 | 技术栈 | 职责 | 目录 |
-| :--- | :--- | :--- | :--- | :--- |
-| **Auth Service** | **8081** | Go (Gin) | 用户认证、JWT、绑定管理 | `microservices/auth-service` |
-| **Edu Service** | **8082** | Java (Spring Boot) | 学生、教师、课表、教务数据 | `microservices/edu-service` |
-| **LLM Service** | **8000** | Python (FastAPI) | AI 对话、RAG、敏感词过滤 | `microservices/llm-service` |
-| **Postgres** | 5433 | PostgreSQL 15 | 存储 Auth 和 Edu 数据 | (Docker) |
-| **Mongo** | 27017 | MongoDB | 存储对话历史、敏感词库 | (Docker) |
+本文档旨在帮助开发人员快速搭建环境、启动服务并参与开发。本项目采用微服务架构，包含 Gateway (Nginx), Auth (Go), Edu (Java), LLM (Python) 四个服务组件。
 
 ---
 
-## ⚡ 快速启动 (Docker 模式)
-
-这是最简单的启动方式，适合预览或部署。
+## 快速启动（Docker）
 
 ### 前置要求
 - Docker & Docker Compose
-- 根目录下已配置 `.env` 文件
+- 可选：根目录 `.env`（建议生产/团队环境使用，避免把密钥写进配置文件）
 
 ### 启动命令
 在项目根目录执行：
@@ -36,13 +22,20 @@ docker-compose logs -f
 ```
 
 ### 访问服务
-- **Swagger 文档 (LLM)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Auth API**: [http://localhost:8081/api/v1/auth/health](http://localhost:8081/api/v1/auth/health)
-- **Edu API**: [http://localhost:8082/api/v1/edu/health](http://localhost:8082/api/v1/edu/health)
+- **统一入口（网关）**: [http://localhost:8080](http://localhost:8080)
+- **LLM Swagger（通过网关）**: [http://localhost:8080/docs](http://localhost:8080/docs)
+- **Edu Swagger（通过网关）**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **Auth Swagger（直连）**: [http://localhost:8081/swagger/index.html](http://localhost:8081/swagger/index.html)
+
+端口约定：
+- Gateway: 8080
+- Auth Service: 8081
+- Edu Service: 8082
+- LLM Service: 8000
 
 ---
 
-## 🛠️ 本地开发指南 (Local Development)
+## 本地开发指南
 
 如果你需要修改代码，建议在本地分别启动服务。
 
@@ -94,13 +87,13 @@ source venv/bin/activate  # macOS/Linux
 # 安装依赖
 pip install -r requirements.txt
 
-# 运行服务 (会自动向上查找根目录的 .env)
-python main.py
+# 运行服务
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ---
 
-## 🧪 接口测试流程
+## 接口测试流程
 
 ### 1. 注册与登录 (Auth Service)
 所有操作都需要 Token。
@@ -127,22 +120,28 @@ curl http://localhost:8082/api/v1/classes \
 ```
 
 ### 3. AI 对话 (LLM Service)
-LLM Service 会自动调用 Auth Service 验证 Token。
+LLM Service 会在本地校验 JWT（要求 `SECRET_KEY` 与 Auth Service 的 `JWT_SECRET` 保持一致）。
 
 ```bash
-# 发起对话
-curl -X POST http://localhost:8000/api/v1/conversations/chat \
+# 1) 创建对话，拿到 conversation_id
+curl -X POST http://localhost:8000/api/v1/conversations \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json"
+
+# 2) 向对话发送消息
+curl -X POST http://localhost:8000/api/v1/conversations/<CONVERSATION_ID>/messages \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
-  -d '{"message": "你好，请介绍一下你自己"}'
+  -d '{"content": "你好，请介绍一下你自己"}'
 ```
 
 ---
 
-## 📂 目录结构说明
+## 目录结构说明
 
 ```text
 /llm-filter
+├── gateway/                # Nginx 网关配置
 ├── docker-compose.yml        # 容器编排文件
 ├── .env                      # 全局环境变量 (数据库密码、密钥等)
 └── microservices/            # 微服务源码目录
@@ -151,8 +150,8 @@ curl -X POST http://localhost:8000/api/v1/conversations/chat \
     └── llm-service/          # [Python] LLM 核心服务
 ```
 
-## ⚠️ 常见问题
+## 常见问题
 
 1.  **端口冲突**：如果 `5432` 被本地 Postgres 占用，Docker 会映射到 `5433`。代码中已默认适配 `5433`，如需修改请检查 `.env` 和各服务的配置文件。
 2.  **Maven 下载慢**：请使用项目提供的 `microservices/edu-service/settings.xml`，已配置阿里云镜像。
-3.  **Python 找不到 .env**：`config.py` 已内置自动向上查找逻辑，确保在 `microservices/llm-service` 目录下运行即可。
+3.  **LLM 无法鉴权**：请确保 `SECRET_KEY` 与 Auth Service 的 `JWT_SECRET` 一致，否则会出现 401。

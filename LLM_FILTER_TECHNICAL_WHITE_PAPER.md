@@ -14,9 +14,9 @@
     *   1.3 法规遵从性分析：《生成式人工智能服务管理暂行办法》
     *   1.4 项目愿景：构建“本地化、可控、可审计”的 AI 基础设施
 2.  **第二章：系统架构设计哲学**
-    *   2.1 总体架构设计：Clean Architecture（整洁架构）的实践
+    *   2.1 总体架构设计：服务内整洁架构 + 系统级微服务边界
     *   2.2 后端核心：基于 Python AsyncIO 的高并发异步模型
-    *   2.3 数据持久层：Schema-less 设计与 MongoDB 的选型逻辑
+    *   2.3 数据持久层：PostgreSQL + MongoDB 的混合存储策略
     *   2.4 推理计算层：边缘计算与 Edge AI 的本地化部署策略
 3.  **第三章：核心算法与实现细节**
     *   3.1 确定性有限自动机（DFA）在敏感词过滤中的应用
@@ -28,9 +28,8 @@
     *   4.2 内容风控体系：从 Prompt Injection 防御到输出阻断
     *   4.3 数据主权与物理隔离：Air-Gapped 环境下的可用性保障
 5.  **第五章：工程化实践与性能评估**
-    *   5.1 容器化部署（Docker）与微服务拆分潜力
-    *   5.2 性能基准测试（Benchmark）：并发吞吐量与延迟分析
-    *   5.3 CI/CD 流水线与代码质量控制
+    *   5.1 性能基准测试（Benchmark）：并发吞吐量与延迟分析
+    *   5.2 CI/CD 流水线与代码质量控制
 6.  **第六章：总结与未来展望**
     *   6.1 项目创新点总结
     *   6.2 局限性讨论
@@ -80,19 +79,39 @@ LLM-Filter 不仅仅是一个“过滤器”，它被定义为**AI 时代的防�
 
 # 第二章：系统架构设计哲学
 
-## 2.1 总体架构设计：Clean Architecture（整洁架构）的实践
+## 2.1 总体架构设计：服务内整洁架构 + 系统级微服务边界
 
 在软件工程中，架构的质量决定了系统的生命周期。LLM-Filter 采用了 Robert C. Martin 提出的 **Clean Architecture（整洁架构）** 思想，强调“关注点分离”（Separation of Concerns）和“依赖倒置”（Dependency Inversion）。
 
-系统从逻辑上划分为四层同心圆结构：
+LLM-Filter 的架构可以拆成两层理解：
+
+1) **系统级（Microservices）**：通过网关对外暴露统一入口，内部按领域拆成 Auth（认证/绑定）、Edu（教务/看板）、LLM（对话/过滤/审计）。
+
+2) **服务内（Clean Architecture）**：以 LLM Service 为例，服务内部再使用整洁架构分层，保证可测试性与可替换性。
+
+系统级拓扑如下：
+
+```mermaid
+graph TD
+    Client[Client] --> Gateway[Gateway (Nginx)]
+    Gateway --> AuthSvc[Auth Service (Go/Gin)]
+    Gateway --> EduSvc[Edu Service (Java/Spring Boot)]
+    Gateway --> LLMSvc[LLM Service (Python/FastAPI)]
+    AuthSvc --> PG[(PostgreSQL)]
+    EduSvc --> PG
+    LLMSvc --> Mongo[(MongoDB)]
+    LLMSvc --> LLM[Ollama / Dify]
+```
+
+服务内从逻辑上划分为四层同心圆结构：
 1.  **实体层（Entities / Domain Layer）**：这是系统的核心，定义了最基础的业务对象，如 `User`（用户）、`Conversation`（对话）、`SensitiveWord`（敏感词）。这些对象不依赖于任何外部框架（如数据库、Web 框架），仅包含纯粹的 Python 数据类（Pydantic Models）。
-    *   *代码体现*：`app/models/` 目录下的定义。
+    *   *代码体现*：`microservices/llm-service/app/models/` 目录下的定义。
 2.  **用例层（Use Cases / Service Layer）**：定义了具体的业务逻辑，如“创建对话”、“检测敏感词”、“调用 LLM 生成回复”。这一层协调实体与外部接口，但依然不依赖具体的 HTTP 协议。
-    *   *代码体现*：`app/services/` 目录下的业务逻辑函数。
+    *   *代码体现*：`microservices/llm-service/app/services/` 目录下的业务逻辑函数。
 3.  **接口适配层（Interface Adapters / API Layer）**：负责将外部的 HTTP 请求转换为用例层能理解的数据结构，并将处理结果转换为 JSON 格式返回。这一层处理路由分发、参数校验、状态码控制。
-    *   *代码体现*：`app/api/` 目录下的 FastAPI 路由定义。
+    *   *代码体现*：`microservices/llm-service/app/api/` 目录下的 FastAPI 路由定义。
 4.  **基础设施层（Frameworks & Drivers / Infrastructure Layer）**：包含具体的数据库驱动（Motor/MongoDB）、外部 API 客户端（Httpx/Ollama）、日志系统等。
-    *   *代码体现*：`app/db/`, `app/core/` 等配置与驱动。
+    *   *代码体现*：`microservices/llm-service/app/db/`, `microservices/llm-service/app/core/` 等配置与驱动。
 
 这种分层架构的最大优势在于**可测试性**和**可替换性**。例如，如果未来我们需要将 MongoDB 替换为 PostgreSQL，或者将 Ollama 替换为 vLLM，我们只需要修改基础设施层的代码，而核心的业务逻辑层（Service）和实体层（Model）完全不需要变动。
 
@@ -106,25 +125,26 @@ LLM-Filter 不仅仅是一个“过滤器”，它被定义为**AI 时代的防�
 ### 2.2.1 事件循环（Event Loop）与协程（Coroutine）
 Python 的 `async/await` 语法允许我们在应用层显式地控制控制权的切换。当代码执行到 `await generate_response(...)` 时，当前的协程会挂起（Suspend），将控制权交还给事件循环（Event Loop）。事件循环可以立即调度其他就绪的任务（如处理另一个用户的登录请求或读取数据库）。只有当 GPU 完成推理并返回数据时，原来的协程才会被唤醒（Resume）。
 
-在 `app/services/ollama.py` 中，我们使用了 `httpx.AsyncClient` 来发起非阻塞的 HTTP 请求：
+在 `microservices/llm-service/app/services/ollama.py` 中，我们使用了 `httpx.AsyncClient` 来发起非阻塞的 HTTP 请求：
 ```python
 async with httpx.AsyncClient() as client:
     response = await client.post(...)
 ```
 这一行代码的改变，使得单核 CPU 的并发吞吐量从几十 QPS 提升到了数千 QPS（仅针对 I/O 等待场景）。这对于资源受限的边缘服务器（Edge Server）至关重要。
 
-## 2.3 数据持久层：Schema-less 设计与 MongoDB 的选型逻辑
+## 2.3 数据持久层：PostgreSQL + MongoDB 的混合存储策略
 
-在数据库选型上，我们放弃了传统的关系型数据库（RDBMS, 如 MySQL），选择了文档型数据库 **MongoDB**。这一决策基于以下考量：
+在落地实现中，我们采用了 **混合存储**：
 
-1.  **数据的非结构化特征**：
-    *   对话历史（Conversation History）是高度动态的。一条消息可能包含纯文本，未来可能包含图片 URL、引用链接、代码块等。使用 JSON 文档存储可以自然地映射这些嵌套结构，避免了 MySQL 中复杂的关联表（JOIN）查询。
-2.  **写密集型场景（Write-Intensive）**：
-    *   LLM-Filter 需要记录详细的审计日志（Audit Logs）。在高并发场景下，大量的日志写入会对数据库造成压力。MongoDB 的 WiredTiger 存储引擎在处理高并发写入方面表现优异，且支持分片（Sharding）扩展。
-3.  **敏捷迭代需求**：
-    *   项目处于快速发展期，数据模型变化频繁。MongoDB 的 Schema-less 特性允许我们在不进行繁琐的数据库迁移（Migration）的情况下，动态添加字段（如为 Message 添加 `latency` 字段）。
+1. **PostgreSQL（强一致 + 结构化）**
+   * 适用：用户账户、RBAC、绑定关系、教务核心实体与看板统计。
+   * 优势：外键/事务保障、便于做复杂查询与报表。
 
-我们在 `app/models/user.py` 中结合 **Pydantic** 实现了应用层的 Schema 验证，既享受了 NoSQL 的灵活性，又通过代码层面的约束保证了数据的完整性。
+2. **MongoDB（高写入 + 半结构化）**
+   * 适用：对话历史、敏感词库、过滤命中记录、审计轨迹等。
+   * 优势：天然承载嵌套结构（messages 数组、元数据扩展），对迭代友好。
+
+这种组合让系统既能在“身份/教务”上获得关系模型的完整性，又能在“对话/审计”上保持 Schema 的弹性。对于 LLM Service，我们仍然使用 Pydantic 做应用层校验，避免 Schema-less 带来的数据漂移。
 
 ## 2.4 推理计算层：边缘计算与 Edge AI 的本地化部署策略
 
@@ -159,7 +179,7 @@ LLM-Filter 放弃了基于正则表达式（Regex）或简单的字符串包含�
 
 ### 3.2.1 数据结构定义
 Trie 树的根节点为空，每个节点包含一个哈希映射（HashMap），存储指向子节点的指针。
-在 Python 实现中（`app/utils/sensitive_word_filter.py`），我们优化了节点结构：
+在 Python 实现中（`microservices/llm-service/app/utils/sensitive_word_filter.py`），我们优化了节点结构：
 ```python
 class TrieNode:
     def __init__(self):
@@ -183,7 +203,7 @@ Trie 树的一个缺点是空间复杂度较高。为了优化内存，我们采
 
 大模型的一个显著限制是 **Context Window（上下文窗口）**（如 Llama 2 通常为 4096 tokens）。如果直接将所有历史对话发给模型，很快就会超出限制导致报错或遗忘。
 
-LLM-Filter 在 `app/services/conversation.py` 中实现了智能的**滑动窗口（Sliding Window）**算法：
+LLM-Filter 在 `microservices/llm-service/app/services/conversation.py` 中实现了智能的**滑动窗口（Sliding Window）**算法：
 1.  **截断策略**：每次请求只携带最近的 $K$ 轮对话（默认 $K=10$）。
 2.  **系统提示词保留**：无论窗口如何滑动，最初的 `System Prompt`（包含角色设定和安全指令）始终被保留在 Prompt 的头部。
 3.  **Token 计算**：虽然目前使用简单的条数限制，但架构预留了 Tokenizer 接口，未来可升级为基于精确 Token 计数的截断策略。
@@ -194,7 +214,7 @@ LLM-Filter 在 `app/services/conversation.py` 中实现了智能的**滑动窗�
 以下是 Trie 树核心匹配算法的真实代码实现。它展示了为什么我们能做到毫秒级响应：没有复杂的回溯，就是一个简单的双重循环。
 
 ```python
-# app/utils/sensitive_word_filter.py
+# microservices/llm-service/app/utils/sensitive_word_filter.py
 
 # 遍历文本的每个字符作为起点
 for i in range(len(text_lower)):
@@ -227,7 +247,7 @@ def delete_conversation(user):
 ```
 这种写法违反了单一职责原则。LLM-Filter 利用 FastAPI 强大的 **Dependency Injection System**，将权限逻辑彻底抽离。
 
-在 `app/api/deps.py` 中，我们定义了高阶依赖工厂函数：
+在 `microservices/llm-service/app/api/deps.py` 中，我们定义了高阶依赖工厂函数：
 ```python
 def require_role(min_level: int):
     async def _checker(current_user: dict = Depends(get_current_active_user)):
@@ -259,30 +279,26 @@ LLM-Filter 采用了 **Stateless（无状态）** 的 JWT 机制。
 ### 4.1.3 关键接口实现：Login
 为了实现高效的无状态鉴权，我们在登录接口中直接将用户的核心权限信息注入 Token。
 
-```python
-# app/api/v1/auth.py
+当前实现中，登录由 **Auth Service（Go/Gin）** 负责：
 
-@router.post("/login", response_model=Token, ...)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """用户登录"""
-    # 1. 验证用户名密码
-    user = await authenticate_user(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(...) # 401 Unauthorized
-    
-    # 2. 生成 JWT Token
-    access_token = create_access_token(
-        data={
-            "sub": str(user["_id"]),
-            "role": user.get("role", "user"),
-            "role_level": user.get("role_level", 1),
-            "edition": user.get("edition", "edu"),
-            # 关键设计：在 Token 里直接植入了 'person_id' 绑定信息
-            # 这样后续请求就不需要反复查库，实现了无状态鉴权
-            **({...} if (b := await db.db.bindings.find_one(...)) else {})
-        },
-        expires_delta=access_token_expires
-    )
+1. 校验用户名/密码（bcrypt）。
+2. 查询用户主绑定（bindings）。
+3. 生成 JWT：Payload 中包含 `sub`（用户 ID）、`name`、`role`、`role_level`、`edition`、以及绑定信息字段。
+4. 其他服务（LLM/Edu）在本地使用同一密钥验签并解析 Token，从而实现“无状态鉴权”。
+
+接口返回示意：
+
+```json
+{
+  "token": "<JWT>",
+  "user": {
+    "id": 1,
+    "username": "student_101",
+    "role": "user",
+    "role_level": 1,
+    "edition": "edu"
+  }
+}
 ```
 
 ## 4.2 内容风控体系：从 Prompt Injection 防御到输出阻断
@@ -299,7 +315,7 @@ LLM-Filter 采取了双重防御：
 在对话服务中，我们采用了 **Pipeline（管道）模式**，将用户输入、敏感词过滤和大模型推理串联起来。
 
 ```python
-# app/services/conversation.py
+# microservices/llm-service/app/services/conversation.py
 
 async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[str, Any]:
     """
@@ -340,7 +356,7 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
 为了满足企业级应用的需求，我们提供了高效的批量数据处理接口。
 
 ```python
-# app/api/v1/admin.py
+# microservices/llm-service/app/api/v1/admin.py
 
 @router.post("/sensitive-words/import", ...)
 async def import_sensitive_words_from_file(
