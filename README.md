@@ -1,5 +1,7 @@
 # LLM-Filter 智能对话过滤系统
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE) [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql&logoColor=white)](scripts/init_postgres.sql) [![MongoDB](https://img.shields.io/badge/MongoDB-6%2B-47A248?logo=mongodb&logoColor=white)](scripts/init_mongo.py) [![Ollama](https://img.shields.io/badge/Ollama-Local%20LLM-000000)](https://ollama.com/) [![Dify](https://img.shields.io/badge/Dify-Agent-5B2EFF)](https://dify.ai/) [![Go](https://img.shields.io/badge/Go-1.x-00ADD8?logo=go&logoColor=white)](microservices/auth-service/go.mod) [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2%2B-6DB33F?logo=springboot&logoColor=white)](microservices/edu-service/pom.xml) [![FastAPI](https://img.shields.io/badge/FastAPI-0.1xx-009688?logo=fastapi&logoColor=white)](microservices/llm-service/app/main.py)
+
 一个面向教育与企业双场景的智能对话过滤系统，基于 **微服务架构** 重构，集成了高效敏感词过滤、严格的角色与版别控制、以及完善的教务/企业数据管理。
 
 系统采用 **Go (认证)** + **Java (教务)** + **Python (LLM)** 的混合技术栈，充分发挥各语言优势，通过 **Docker Compose** 统一编排部署。
