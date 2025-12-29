@@ -18,7 +18,22 @@ class SecurityService:
             devices = MOCK_DEVICES
         
         device_str = "\n".join([f"{d.name} ({d.type}): Status={d.status}, Logs={d.logs}" for d in devices])
-        prompt = f"请分析以下网络设备的运行状态和日志，找出潜在的安全隐患，并给出风险等级（low, medium, high, critical）和修复建议。请以 JSON 格式返回，包含以下字段：summary, vulnerabilities (list), suggestions (list), risk_level。\n\n设备信息：\n{device_str}"
+        prompt = f"""你是一个高级网络安全分析专家智能体。请分析以下网络设备的运行状态和日志，找出潜在的安全隐患。
+        
+        设备信息：
+        {device_str}
+        
+        请严格遵守以下要求：
+        1. 必须强制使用中文回复。
+        2. 必须以合法的 JSON 格式返回结果，不要包含 Markdown 代码块标记。
+        3. 仅返回 JSON 数据本身。
+        
+        返回的 JSON 结构必须包含以下字段：
+        - summary (string): 简要的安全分析总结（中文）。
+        - vulnerabilities (list): 发现的漏洞列表，如果是复杂对象请包含 device, issue, risk_level 字段。
+        - suggestions (list): 针对性的修复建议列表（中文）。
+        - risk_level (string): 整体风险等级（low, medium, high, critical）。
+        """
         
         return await self._call_llm(prompt, "analysis", SecurityAnalysisResponse)
 
@@ -41,19 +56,41 @@ class SecurityService:
 
     async def _call_llm(self, prompt: str, mock_type: str, model_cls):
         try:
-            # 尝试调用 Dify
+            # 尝试调用 Dify (使用 streaming 模式，因为 Agent App 不支持 blocking)
             headers = {"Authorization": f"Bearer {settings.DIFY_API_KEY}", "Content-Type": "application/json"}
-            payload = {"inputs": {}, "query": prompt, "response_mode": "blocking", "conversation_id": "", "user": "security-system"}
+            payload = {"inputs": {}, "query": prompt, "response_mode": "streaming", "conversation_id": "", "user": "security-system"}
             url = f"{settings.DIFY_API_URL.rstrip('/')}/chat-messages"
             
+            full_answer = ""
             async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json=payload, headers=headers, timeout=60.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    answer = data.get("answer", "")
-                    json_data = self._extract_json(answer)
-                    if json_data:
-                        return model_cls(**json_data)
+                async with client.stream("POST", url, json=payload, headers=headers, timeout=120.0) as resp:
+                    if resp.status_code == 200:
+                        async for line in resp.aiter_lines():
+                            if line.startswith("data: "):
+                                try:
+                                    # 处理 SSE 格式数据
+                                    json_str = line[6:].strip()
+                                    if not json_str:
+                                        continue
+                                    data = json.loads(json_str)
+                                    event = data.get("event")
+                                    # message 是 Chat App, agent_message 是 Agent App
+                                    if event in ["message", "agent_message"]:
+                                        full_answer += data.get("answer", "")
+                                except Exception as e:
+                                    # 忽略解析错误的行
+                                    continue
+                    else:
+                        # 读取错误响应体
+                        error_body = await resp.read()
+                        print(f"LLM Call Failed: Status={resp.status_code}, Response={error_body.decode()}")
+
+            if full_answer:
+                # print(f"DEBUG: Full LLM Answer: {full_answer}")
+                json_data = self._extract_json(full_answer)
+                if json_data:
+                    return model_cls(**json_data)
+                    
         except Exception as e:
             print(f"LLM Call Error: {e}")
         

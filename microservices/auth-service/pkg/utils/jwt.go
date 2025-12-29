@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -35,7 +36,7 @@ func CheckPasswordHash(password, hash string) bool {
 // GenerateToken 生成 JWT Token
 func GenerateToken(userID uint, username string, role string, roleLevel int, edition string, personID string, personType string) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":         userID,
+		"sub":         fmt.Sprintf("%d", userID),
 		"name":        username,
 		"role":        role,
 		"role_level":  roleLevel,

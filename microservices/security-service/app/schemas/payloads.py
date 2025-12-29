@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any, Union
 from pydantic import BaseModel
 
 class DeviceInfo(BaseModel):
@@ -14,9 +14,9 @@ class SecurityAnalysisRequest(BaseModel):
 
 class SecurityAnalysisResponse(BaseModel):
     summary: str
-    vulnerabilities: List[str]
-    suggestions: List[str]
-    risk_level: str
+    vulnerabilities: List[Union[str, dict, Any]]
+    suggestions: List[Union[str, dict, Any]]
+    risk_level: Optional[str] = "unknown"
 
 class AttackAdviceRequest(BaseModel):
     attack_type: str
