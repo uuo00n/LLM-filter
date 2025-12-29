@@ -15,6 +15,7 @@
 | **Gateway** | Nginx | 8080 | 统一 API 网关，负责请求路由转发与跨域处理 |
 | **Auth Service** | Go (Gin) | 8081 | 用户注册、登录、JWT 签发、绑定管理 |
 | **Edu Service** | Java (Spring Boot) | 8082 | 教务/业务核心服务（班级、人员、教师、课表、看板等） |
+| **Security Service** | Python (FastAPI) | 8003 | 安全分析、风险监测、攻击应急、安全日报 |
 | **LLM Service** | Python (FastAPI) | 8000 | 智能对话、敏感词过滤、审计日志、敏感词管理 |
 
 ### 基础设施
@@ -38,9 +39,15 @@
 ### Gateway（Nginx）
 
 - **统一入口**：对外只暴露一个入口，由网关按路径将请求转发到各后端服务。
+- **接口文档**：统一管理所有微服务的 Swagger 文档入口
+  - **LLM Service**: `http://localhost:8080/docs/llm`
+  - **Security Service**: `http://localhost:8080/docs/security`
+  - **Edu Service**: `http://localhost:8080/docs/edu`
+  - **Auth Service**: `http://localhost:8080/docs/auth`
 - **路由转发**：
   - 认证服务：`/api/v1/auth/*`、`/api/v1/bindings/*`
   - 教务服务：`/api/v1/classes/*`、`/api/v1/persons/*`、`/api/v1/teachers/*`、`/api/v1/schedules/*`、`/api/v1/dashboard/*`、`/api/v1/edu/*`
+  - 安全服务：`/api/v1/security/*`
   - LLM 服务：其余路径默认转发（包含 `/docs`、`/api/v1/*` 等）
 - **跨域与压缩**：统一设置 CORS 响应头与 gzip，减少前端对接成本。
 
@@ -73,6 +80,16 @@
   - 部门负责人：`/api/v1/dashboard/department/overview`
   - 校级管理：`/api/v1/dashboard/campus/overview`
 - **JWT 本地解析**：通过 `JwtAuthenticationFilter` 解析 `Authorization: Bearer <token>`，将用户信息写入 `UserContext`，业务层可直接读取当前用户身份。
+
+### Security Service（Python / FastAPI）
+
+- **AI 安全分析**：
+  - `POST /api/v1/security/analysis`：基于设备信息（交换机/防火墙/服务器）进行 AI 安全隐患分析
+  - `POST /api/v1/security/attack/advice`：针对正在遭受的攻击提供 AI 应急建议
+- **风险监测与日报**：
+  - `GET /api/v1/security/monitor/risk`：AI 联网检索最新漏洞与合规风险
+  - `GET /api/v1/security/reports/daily`：生成企业安全状态日报
+- **权限控制**：仅限管理员（`role_level >= 9`）访问
 
 ### LLM Service（Python / FastAPI）
 

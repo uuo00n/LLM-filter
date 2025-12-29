@@ -62,6 +62,7 @@ services:
       context: ./microservices/llm-service
       dockerfile: Dockerfile
     container_name: llm-filter-llm
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips '*'
     ports:
       - "8000:8000"
     volumes:
@@ -81,6 +82,24 @@ services:
       - DIFY_API_KEY=app-lkK33EQOVXXrjD9x3SKbItr7
     depends_on:
       - mongo
+    networks:
+      - llm-network
+
+  # 安全分析服务 (Python)
+  security-service:
+    build:
+      context: ./microservices/security-service
+      dockerfile: Dockerfile
+    container_name: llm-filter-security
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips '*'
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./microservices/security-service/app:/app/app
+    environment:
+      - JWT_SECRET=llm_filter_secure_secret_key_2025_update_must_be_32_bytes
+      - DIFY_API_URL=http://datacenter.dldzxx.cn:8089/v1
+      - DIFY_API_KEY=app-xTl0Ri6ir7cAuvngDtFe3hKP
     networks:
       - llm-network
 
@@ -107,6 +126,7 @@ services:
       - auth-service
       - edu-service
       - llm-service
+      - security-service
     networks:
       - llm-network
 
