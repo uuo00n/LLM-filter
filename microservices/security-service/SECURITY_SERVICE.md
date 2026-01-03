@@ -173,21 +173,32 @@ Content-Type: application/json
 
 当前版本的 Security Service：
 
-- 不写入任何数据库（PostgreSQL / MongoDB）
-- 不记录历史分析结果或报告
-- 所有分析基于：
-  - 请求中传入的设备数据
-  - 实时从 Dify 获取的分析结果
+- **数据持久化**：分析结果（风险分析与攻击建议）会异步存储到 **MongoDB** 数据库中。
+- **历史查询**：提供接口查询历史分析记录。
 
-后续如果需要：
+## 7. 历史查询接口
 
-- 可以将分析结果落库到 PostgreSQL 或 MongoDB
-- 典型扩展：
-  - 安全日报历史查询
-  - 风险趋势分析
-  - 设备安全基线与偏离检测
+### 7.1 安全分析历史
 
-## 7. 快速调试示例（curl）
+- 方法：`GET`
+- URL：`/api/v1/security/analysis/history`
+- 参数：
+  - `start_date` (可选): 开始时间 (ISO 8601)
+  - `end_date` (可选): 结束时间 (ISO 8601)
+  - `limit` (可选): 返回数量限制，默认 20
+- 响应：包含 `total` 和 `items` (AnalysisHistoryItem)
+
+### 7.2 攻击建议历史
+
+- 方法：`GET`
+- URL：`/api/v1/security/attack-advice/history`
+- 参数：
+  - `start_date` (可选): 开始时间 (ISO 8601)
+  - `end_date` (可选): 结束时间 (ISO 8601)
+  - `limit` (可选): 返回数量限制，默认 20
+- 响应：包含 `total` 和 `items` (AttackAdviceHistoryItem)
+
+## 8. 快速调试示例（curl）
 
 确保容器已启动后，可以在宿主机直接运行：
 

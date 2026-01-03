@@ -100,6 +100,10 @@ services:
       - JWT_SECRET=llm_filter_secure_secret_key_2025_update_must_be_32_bytes
       - DIFY_API_URL=http://datacenter.dldzxx.cn:8089/v1
       - DIFY_API_KEY=app-xTl0Ri6ir7cAuvngDtFe3hKP
+      - MONGODB_URL=mongodb://mongo:27017
+      - MONGODB_DB_NAME=security_service_db
+    depends_on:
+      - mongo
     networks:
       - llm-network
 

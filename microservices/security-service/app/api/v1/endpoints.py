@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from app.schemas.payloads import *
 from app.services.analysis import SecurityService
 from app.services.rss import RSSService
 from app.core.security import get_current_admin
+from app.core.database import db
+from datetime import datetime, timezone
 
 router = APIRouter()
 service = SecurityService()
@@ -10,11 +12,51 @@ rss_service = RSSService()
 
 @router.post("/analysis", response_model=SecurityAnalysisResponse)
 async def analyze_risks(request: SecurityAnalysisRequest, admin: dict = Depends(get_current_admin)):
-    return await service.analyze_risks(request.devices)
+    result = await service.analyze_risks(request.devices)
+    
+    # 异步存储结果到 MongoDB
+    if db.db is not None:
+        log_entry = result.model_dump()
+        log_entry["created_at"] = datetime.now(timezone.utc)
+        await db.db.security_analysis_logs.insert_one(log_entry)
+        
+    return result
+
+@router.get("/analysis/history", response_model=HistoryQueryResponse)
+async def get_analysis_history(
+    start_date: Optional[datetime] = Query(None, description="开始时间 (ISO 8601)"),
+    end_date: Optional[datetime] = Query(None, description="结束时间 (ISO 8601)"),
+    limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
+    admin: dict = Depends(get_current_admin)
+):
+    """
+    查询安全分析历史记录
+    """
+    return await service.get_analysis_history(start_date, end_date, limit)
 
 @router.post("/attack-advice", response_model=AttackAdviceResponse)
 async def get_attack_advice(request: AttackAdviceRequest, admin: dict = Depends(get_current_admin)):
-    return await service.get_attack_advice(request.attack_type, request.target_device, request.logs)
+    result = await service.get_attack_advice(request.attack_type, request.target_device, request.logs)
+    
+    # 异步存储结果到 MongoDB
+    if db.db is not None:
+        log_entry = result.model_dump()
+        log_entry["created_at"] = datetime.now(timezone.utc)
+        await db.db.attack_advice_logs.insert_one(log_entry)
+        
+    return result
+
+@router.get("/attack-advice/history", response_model=HistoryQueryResponse)
+async def get_attack_advice_history(
+    start_date: Optional[datetime] = Query(None, description="开始时间 (ISO 8601)"),
+    end_date: Optional[datetime] = Query(None, description="结束时间 (ISO 8601)"),
+    limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
+    admin: dict = Depends(get_current_admin)
+):
+    """
+    查询攻击建议历史记录
+    """
+    return await service.get_attack_advice_history(start_date, end_date, limit)
 
 @router.get("/report", response_model=SecurityReportResponse)
 async def generate_report(admin: dict = Depends(get_current_admin)):

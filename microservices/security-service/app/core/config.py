@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     DIFY_API_URL: str = "http://datacenter.dldzxx.cn:8089/v1"
     DIFY_API_KEY: str = "app-lkK33EQOVXXrjD9x3SKbItr7"
     
+    # MongoDB 配置
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "security_service_db"
+    
     class Config:
         case_sensitive = True
 

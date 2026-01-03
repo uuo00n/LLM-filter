@@ -1,5 +1,6 @@
 from typing import List, Optional, Any, Union
 from pydantic import BaseModel
+from datetime import datetime
 
 class DeviceInfo(BaseModel):
     id: str
@@ -50,4 +51,16 @@ class RSSItem(BaseModel):
 
 class RSSFeedResponse(BaseModel):
     items: List[RSSItem]
+
+class AnalysisHistoryItem(SecurityAnalysisResponse):
+    id: str
+    created_at: datetime
+
+class AttackAdviceHistoryItem(AttackAdviceResponse):
+    id: str
+    created_at: datetime
+
+class HistoryQueryResponse(BaseModel):
+    total: int
+    items: List[Union[AnalysisHistoryItem, AttackAdviceHistoryItem]]
 

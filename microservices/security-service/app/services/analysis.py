@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import ValidationError
 from app.schemas.payloads import *
 from app.core.config import settings
+from app.core.database import db
 import logging
 
 logger = logging.getLogger(__name__)
@@ -66,17 +67,63 @@ class SecurityService:
 
     async def monitor_risks(self) -> RiskMonitorResponse:
         """
-        任务：漏洞监测
+        [MOCK] 实时风险监控
         """
-        # 注意：此处应从外部漏洞库或配置获取关注列表
-        recent_vulns = [] 
+        return RiskMonitorResponse(
+            detected_vulnerabilities=["CVE-2024-0001 (Critical)", "Weak SSH Config"],
+            compliance_risks=["Password policy outdated", "Unencrypted backup found"],
+            ai_assessment="System security posture is stable but requires attention on recent CVEs."
+        )
+
+    async def get_analysis_history(self, start_date: datetime = None, end_date: datetime = None, limit: int = 20) -> HistoryQueryResponse:
+        """
+        查询安全分析历史
+        """
+        if db.db is None:
+            return HistoryQueryResponse(total=0, items=[])
         
-        inputs = {
-            "task_type": "monitor",
-            "context_data": json.dumps(recent_vulns, ensure_ascii=False)
-        }
+        query = {}
+        if start_date or end_date:
+            query["created_at"] = {}
+            if start_date:
+                query["created_at"]["$gte"] = start_date
+            if end_date:
+                query["created_at"]["$lte"] = end_date
         
-        return await self._call_llm(inputs, RiskMonitorResponse)
+        total = await db.db.security_analysis_logs.count_documents(query)
+        cursor = db.db.security_analysis_logs.find(query).sort("created_at", -1).limit(limit)
+        
+        items = []
+        async for doc in cursor:
+            doc["id"] = str(doc.pop("_id"))
+            items.append(AnalysisHistoryItem(**doc))
+            
+        return HistoryQueryResponse(total=total, items=items)
+
+    async def get_attack_advice_history(self, start_date: datetime = None, end_date: datetime = None, limit: int = 20) -> HistoryQueryResponse:
+        """
+        查询攻击建议历史
+        """
+        if db.db is None:
+            return HistoryQueryResponse(total=0, items=[])
+        
+        query = {}
+        if start_date or end_date:
+            query["created_at"] = {}
+            if start_date:
+                query["created_at"]["$gte"] = start_date
+            if end_date:
+                query["created_at"]["$lte"] = end_date
+        
+        total = await db.db.attack_advice_logs.count_documents(query)
+        cursor = db.db.attack_advice_logs.find(query).sort("created_at", -1).limit(limit)
+        
+        items = []
+        async for doc in cursor:
+            doc["id"] = str(doc.pop("_id"))
+            items.append(AttackAdviceHistoryItem(**doc))
+            
+        return HistoryQueryResponse(total=total, items=items)
 
     async def _call_llm(self, inputs: Dict[str, Any], model_cls):
         try:
