@@ -1,66 +1,118 @@
 import json
 import httpx
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from pydantic import ValidationError
 from app.schemas.payloads import *
 from app.core.config import settings
+import logging
 
-# Mock Data
-MOCK_DEVICES = [
-    DeviceInfo(id="sw-001", name="Core-Switch-A", type="switch", status="warning", version="v1.2.0", logs=["Port 22 high traffic", "Packet loss detected"]),
-    DeviceInfo(id="fw-001", name="Edge-Firewall", type="firewall", status="active", version="v2.1.patch3", logs=["Denied 1000+ requests from IP 192.168.1.50"]),
-    DeviceInfo(id="srv-001", name="DB-Server-Prod", type="server", status="active", version="Ubuntu 20.04", logs=["Failed login attempts: 5"]),
-]
+logger = logging.getLogger(__name__)
 
 class SecurityService:
     async def analyze_risks(self, devices: List[DeviceInfo] = None) -> SecurityAnalysisResponse:
-        if not devices:
-            devices = MOCK_DEVICES
-        
-        device_str = "\n".join([f"{d.name} ({d.type}): Status={d.status}, Logs={d.logs}" for d in devices])
-        prompt = f"""你是一个高级网络安全分析专家智能体。请分析以下网络设备的运行状态和日志，找出潜在的安全隐患。
-        
-        设备信息：
-        {device_str}
-        
-        请严格遵守以下要求：
-        1. 必须强制使用中文回复。
-        2. 必须以合法的 JSON 格式返回结果，不要包含 Markdown 代码块标记。
-        3. 仅返回 JSON 数据本身。
-        
-        返回的 JSON 结构必须包含以下字段：
-        - summary (string): 简要的安全分析总结（中文）。
-        - vulnerabilities (list): 发现的漏洞列表，如果是复杂对象请包含 device, issue, risk_level 字段。
-        - suggestions (list): 针对性的修复建议列表（中文）。
-        - risk_level (string): 整体风险等级（low, medium, high, critical）。
         """
+        任务：风险分析
+        """
+        if not devices:
+            devices = []
         
-        return await self._call_llm(prompt, "analysis", SecurityAnalysisResponse)
+        # 1. 准备数据，不再拼接 Prompt，只序列化数据
+        device_data = [d.dict() for d in devices] # 假设 Pydantic 模型有 .dict()，或者手动转 dict
+        
+        # 2. 构造 Dify 所需的变量 inputs
+        inputs = {
+            "task_type": "analysis",  # 告诉 Dify 执行哪个任务分支
+            "context_data": json.dumps(device_data, ensure_ascii=False) # 将复杂数据转为字符串传递
+        }
+        
+        return await self._call_llm(inputs, SecurityAnalysisResponse)
 
     async def get_attack_advice(self, attack_type: str, target: str, logs: str) -> AttackAdviceResponse:
-        prompt = f"当前系统正在遭受攻击！\n攻击类型：{attack_type}\n目标设备：{target}\n相关日志：{logs}\n\n请立即给出应急响应建议。以 JSON 格式返回：immediate_actions (list), analysis, mitigation_plan。"
-        return await self._call_llm(prompt, "advice", AttackAdviceResponse)
+        """
+        任务：攻击应急建议
+        """
+        # 构造结构化数据
+        data = {
+            "attack_type": attack_type,
+            "target_device": target,
+            "logs": logs
+        }
+        
+        inputs = {
+            "task_type": "advice",
+            "context_data": json.dumps(data, ensure_ascii=False)
+        }
+        
+        return await self._call_llm(inputs, AttackAdviceResponse)
 
     async def generate_report(self) -> SecurityReportResponse:
-        prompt = f"请根据以下概况生成一份企业安全日报。\n日期：{datetime.now().strftime('%Y-%m-%d')}\n设备状态：3台设备运行中，1台有告警。\n拦截攻击：1500次。\n\n请以 JSON 格式返回：date, overall_status, device_summary, incident_summary, recommendations。"
-        return await self._call_llm(prompt, "report", SecurityReportResponse)
+        """
+        任务：生成日报
+        """
+        # 注意：此处应从真实数据源获取状态，当前暂无数据源连接
+        data = {
+            "date": datetime.now().strftime('%Y-%m-%d'),
+            "device_status": "暂无数据 (需接入数据源)",
+            "intercept_count": 0
+        }
+        
+        inputs = {
+            "task_type": "report",
+            "context_data": json.dumps(data, ensure_ascii=False)
+        }
+        
+        return await self._call_llm(inputs, SecurityReportResponse)
 
     async def monitor_risks(self) -> RiskMonitorResponse:
-        recent_vulns = ["CVE-2023-44487 (HTTP/2 Rapid Reset)", "Log4j 变种漏洞", "Nginx 权限提升漏洞"]
-        prompt = f"我检索到了以下互联网最新的安全漏洞信息：\n{', '.join(recent_vulns)}\n\n请分析这些漏洞对一般企业（使用 Nginx, Java, Python）的合规风险。请以 JSON 格式返回：detected_vulnerabilities (list), compliance_risks (list), ai_assessment。"
+        """
+        任务：漏洞监测
+        """
+        # 注意：此处应从外部漏洞库或配置获取关注列表
+        recent_vulns = [] 
         
-        response = await self._call_llm(prompt, "monitor", RiskMonitorResponse)
-        if not response.detected_vulnerabilities:
-            response.detected_vulnerabilities = recent_vulns
-        return response
+        inputs = {
+            "task_type": "monitor",
+            "context_data": json.dumps(recent_vulns, ensure_ascii=False)
+        }
+        
+        return await self._call_llm(inputs, RiskMonitorResponse)
 
-    async def _call_llm(self, prompt: str, mock_type: str, model_cls):
+    async def _call_llm(self, inputs: Dict[str, Any], model_cls):
         try:
-            # 尝试调用 Dify (使用 streaming 模式，因为 Agent App 不支持 blocking)
-            headers = {"Authorization": f"Bearer {settings.DIFY_API_KEY}", "Content-Type": "application/json"}
-            payload = {"inputs": {}, "query": prompt, "response_mode": "streaming", "conversation_id": "", "user": "security-system"}
             url = f"{settings.DIFY_API_URL.rstrip('/')}/chat-messages"
+            headers = {
+                "Authorization": f"Bearer {settings.DIFY_API_KEY}",
+                "Content-Type": "application/json",
+            }
+
+            # 动态构造 Query 以强化指令，确保 LLM 执行正确的任务分支
+            task_type = inputs.get("task_type", "analysis")
+            query_prompt = f"Please execute the security task: {task_type}."
             
+            if task_type == "advice":
+                query_prompt += " Output JSON must include: immediate_actions, analysis, mitigation_plan."
+            elif task_type == "analysis":
+                query_prompt += " Output JSON must include: summary, vulnerabilities, suggestions, risk_level."
+            elif task_type == "report":
+                query_prompt += " Output JSON must include: date, overall_status, device_summary, incident_summary, recommendations."
+            elif task_type == "monitor":
+                query_prompt += " Output JSON must include: detected_vulnerabilities, compliance_risks, ai_assessment."
+            
+            query_prompt += " Strictly follow the requested JSON schema."
+
+            payload = {
+                "inputs": inputs,
+                "query": query_prompt,
+                "response_mode": "streaming",
+                "conversation_id": "",
+                "user": "security-system-api",
+            }
+
+            # DEBUG LOG: 打印实际发送的 Payload
+            logger.info(f"Sending request to Dify. URL: {url}")
+            logger.info(f"Payload inputs: {json.dumps(inputs, ensure_ascii=False)}")
+
             full_answer = ""
             async with httpx.AsyncClient() as client:
                 async with client.stream("POST", url, json=payload, headers=headers, timeout=120.0) as resp:
@@ -68,52 +120,111 @@ class SecurityService:
                         async for line in resp.aiter_lines():
                             if line.startswith("data: "):
                                 try:
-                                    # 处理 SSE 格式数据
                                     json_str = line[6:].strip()
                                     if not json_str:
                                         continue
                                     data = json.loads(json_str)
                                     event = data.get("event")
-                                    # message 是 Chat App, agent_message 是 Agent App
                                     if event in ["message", "agent_message"]:
                                         full_answer += data.get("answer", "")
-                                except Exception as e:
-                                    # 忽略解析错误的行
+                                except Exception:
                                     continue
                     else:
-                        # 读取错误响应体
                         error_body = await resp.read()
-                        print(f"LLM Call Failed: Status={resp.status_code}, Response={error_body.decode()}")
+                        logger.error(
+                            f"LLM Call Failed: Status={resp.status_code}, Response={error_body.decode()}"
+                        )
 
             if full_answer:
-                # print(f"DEBUG: Full LLM Answer: {full_answer}")
-                json_data = self._extract_json(full_answer)
+                clean_json = self._clean_json_string(full_answer)
+                json_data = self._extract_json(clean_json)
                 if json_data:
-                    return model_cls(**json_data)
-                    
+                    try:
+                        return model_cls(**json_data)
+                    except ValidationError as ve:
+                        logger.error(f"Response validation failed for {model_cls.__name__}: {ve}")
+                else:
+                    logger.warning(
+                        f"Failed to extract JSON from LLM response. Raw answer: {full_answer[:500]}..."
+                    )
+            else:
+                logger.warning("LLM response was empty.")
+
         except Exception as e:
-            print(f"LLM Call Error: {e}")
+            logger.error(f"LLM Call Error: {e}")
+
+        return self._build_default_response(model_cls)
+
+    def _clean_json_string(self, text: str) -> str:
+        """清洗 Markdown 代码块标记和思维链标签"""
+        import re
         
-        # 降级使用 Mock 数据
-        return model_cls(**self._get_mock_data(mock_type))
+        # 记录原始长度用于调试
+        original_len = len(text)
+        
+        # 1. 移除 <think>...</think> 思维链内容
+        # 优先匹配闭合的标签
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        
+        # 2. 处理可能未闭合的 <think> 标签（如果响应被截断）
+        # 如果还有 <think> 开头，说明没闭合，直接丢弃后面的所有内容（假设思考过程在最后被截断，或者思考过程包含了整个剩余部分）
+        # 但通常思考在前，正文在后。如果没闭合，说明正文还没出来。
+        # 这里保守处理：如果剩下内容全是思考，那就全删了，返回空串，由上层处理为空的情况。
+        if '<think>' in text:
+             text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+
+        # 3. 清洗 Markdown 标记
+        if "```json" in text:
+            text = text.replace("```json", "").replace("```", "")
+        elif "```" in text:
+            text = text.replace("```", "")
+            
+        cleaned_text = text.strip()
+        if original_len > 0 and len(cleaned_text) == 0:
+            logger.warning("Response became empty after cleaning (likely only contained <think> block).")
+            
+        return cleaned_text
 
     def _extract_json(self, text: str) -> Dict[str, Any]:
+        if not text:
+            return {}
         try:
             start = text.find('{')
             end = text.rfind('}') + 1
             if start != -1 and end != -1:
-                return json.loads(text[start:end])
+                json_str = text[start:end]
+                return json.loads(json_str)
             return json.loads(text)
-        except:
+        except Exception as e:
+            logger.warning(f"JSON extraction error: {e}. Text snippet: {text[:100]}...")
             return {}
 
-    def _get_mock_data(self, type: str) -> Dict[str, Any]:
-        if type == "analysis":
-            return {"summary": "核心交换机存在异常流量。", "vulnerabilities": ["DDoS 攻击迹象"], "suggestions": ["检查端口配置"], "risk_level": "high"}
-        elif type == "advice":
-            return {"immediate_actions": ["封锁 IP"], "analysis": "暴力破解攻击。", "mitigation_plan": "启用 MFA。"}
-        elif type == "report":
-            return {"date": datetime.now().strftime('%Y-%m-%d'), "overall_status": "良好", "device_summary": "设备正常", "incident_summary": "拦截 1500 次", "recommendations": "定期更新"}
-        elif type == "monitor":
-            return {"detected_vulnerabilities": ["CVE-2023-44487"], "compliance_risks": ["服务中断风险"], "ai_assessment": "需立即更新补丁。"}
-        return {}
+    def _build_default_response(self, model_cls):
+        if model_cls is SecurityAnalysisResponse:
+            return model_cls(
+                summary="LLM 调用失败或未返回有效结果",
+                vulnerabilities=[],
+                suggestions=[],
+                risk_level="unknown",
+            )
+        if model_cls is AttackAdviceResponse:
+            return model_cls(
+                immediate_actions=[],
+                analysis="LLM 调用失败或未返回有效结果，无法提供具体攻击分析。",
+                mitigation_plan="请检查安全监控系统与安全策略配置后重试。",
+            )
+        if model_cls is SecurityReportResponse:
+            return model_cls(
+                date=datetime.now().strftime("%Y-%m-%d"),
+                overall_status="LLM 调用失败或未返回有效结果。",
+                device_summary="暂无可用设备统计数据。",
+                incident_summary="暂无可用安全事件统计数据。",
+                recommendations="请检查安全服务与 LLM 服务的连接状态后重试。",
+            )
+        if model_cls is RiskMonitorResponse:
+            return model_cls(
+                detected_vulnerabilities=[],
+                compliance_risks=[],
+                ai_assessment="LLM 调用失败或未返回有效结果，无法完成有效风险评估。",
+            )
+        return model_cls()

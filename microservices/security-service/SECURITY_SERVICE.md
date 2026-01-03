@@ -58,7 +58,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 - URL：`/api/v1/security/analysis`
 - 说明：
   - 输入网络设备列表（交换机 / 防火墙 / 服务器等），由 AI 分析潜在安全隐患
-  - 如果不传 `devices`，会使用内置 Mock 设备数据
+  - **注意**：必须传入有效的 `devices` 列表，否则将返回空结果或错误。
 
 请求示例：
 
@@ -120,6 +120,7 @@ Content-Type: application/json
 - 方法：`GET`
 - URL：`/api/v1/security/report`
 - 说明：生成企业安全日报，用于面向管理层的安全概览展示
+- **注意**：当前实现需要接入真实数据源才能生成有效报告，否则返回空状态。
 
 响应字段（`SecurityReportResponse`）：
 
@@ -134,6 +135,7 @@ Content-Type: application/json
 - 方法：`GET`
 - URL：`/api/v1/security/monitor`
 - 说明：基于互联网最新漏洞信息，评估当前企业的合规风险
+- **注意**：需要配置或接入外部漏洞数据库，否则返回空列表。
 
 响应字段（`RiskMonitorResponse`）：
 
@@ -141,7 +143,7 @@ Content-Type: application/json
 - `compliance_risks`: 合规风险点列表
 - `ai_assessment`: AI 对整体风险的评估说明
 
-## 5. Dify 集成与降级策略
+## 5. Dify 集成与异常处理
 
 服务内部通过 Dify 完成大部分安全分析逻辑：
 
@@ -149,12 +151,13 @@ Content-Type: application/json
   - `DIFY_API_URL`
   - `DIFY_API_KEY`
 - 请求由 [`SecurityService._call_llm`](app/services/analysis.py) 统一发起
+- **智能体 Prompt 配置**：请参考 [DIFY_PROMPT.md](DIFY_PROMPT.md) 文档，在 Dify 平台配置对应的 System Prompt 和变量。
 
 当 Dify 不可用（网络异常 / 超时 / 抛错）时：
 
-- 会自动降级为内置 Mock 数据
-- Mock 数据定义在 [`_get_mock_data`](app/services/analysis.py) 中
-- 保证接口始终能返回结构化 JSON，便于前端联调与联机 demo
+- 服务将记录错误日志
+- 抛出异常供上层处理或返回 HTTP 500 错误
+- **不再提供 Mock 数据降级**，以确保运维人员能及时感知服务状态异常。
 
 ## 6. 数据存储与状态
 
@@ -164,7 +167,6 @@ Content-Type: application/json
 - 不记录历史分析结果或报告
 - 所有分析基于：
   - 请求中传入的设备数据
-  - 内置 Mock 设备数据 `MOCK_DEVICES`
   - 实时从 Dify 获取的分析结果
 
 后续如果需要：
@@ -181,12 +183,12 @@ Content-Type: application/json
 
 ```bash
 # 1. 使用管理员 Token 调用安全分析（通过网关）
+# 注意：请确保传入真实的设备数据
 curl -X POST "http://localhost:8080/api/v1/security/analysis" \
   -H "Authorization: Bearer <admin_token>" \
   -H "Content-Type: application/json" \
-  -d '{"devices": []}'
+  -d '{"devices": [{"id": "test-1", "name": "Test-Device", "type": "server", "status": "active"}]}'
 
 # 2. 直接访问文档（网关统一入口）
 open "http://localhost:8080/docs/security/"
 ```
-
