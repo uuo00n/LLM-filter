@@ -23,6 +23,7 @@
 - `POST /api/v1/security/attack-advice` —— 攻击应急建议
 - `GET  /api/v1/security/report` —— 安全日报
 - `GET  /api/v1/security/monitor` —— 风险监测与合规评估
+- `GET  /api/v1/security/rss/news` —— 安全新闻 RSS 订阅
 
 ---
 
@@ -208,11 +209,42 @@ curl -X GET "http://localhost:8080/api/v1/security/monitor" \
   "compliance_risks": ["string"],
   "ai_assessment": "string"
 }
-```
 
 ---
 
-## 7. 测试建议
+## 7. 安全新闻 RSS 订阅（/rss/news）测试示例
+
+### 7.1 请求说明
+
+- 方法：`GET`
+- URL：`http://localhost:8080/api/v1/security/rss/news`
+- 用途：获取来自天融信、360 CERT、绿盟等安全厂商的最新资讯。
+
+### 7.2 curl 示例
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/security/rss/news" \
+  -H "Authorization: Bearer <admin_token>"
+```
+
+### 7.3 期望响应结构
+
+```json
+{
+  "items": [
+    {
+      "title": "string",
+      "link": "string",
+      "description": "string",
+      "published": "string",
+      "source": "string"
+    }
+  ]
+}
+
+---
+
+## 8. 测试建议
 
 - 在联调阶段，可以先固定一组假数据（如本文件中的示例），确保：
   - Dify 智能体返回的 JSON 结构稳定且字段完整；

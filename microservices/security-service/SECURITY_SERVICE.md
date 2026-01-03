@@ -143,6 +143,16 @@ Content-Type: application/json
 - `compliance_risks`: 合规风险点列表
 - `ai_assessment`: AI 对整体风险的评估说明
 
+### 4.5 安全新闻 RSS 订阅
+
+- 方法：`GET`
+- URL：`/api/v1/security/rss/news`
+- 说明：获取来自天融信、360 CERT、绿盟等安全厂商的最新 RSS 安全资讯。
+
+响应字段（`RSSFeedResponse`）：
+
+- `items`: 新闻列表，包含标题、链接、摘要、发布时间和来源。
+
 ## 5. Dify 集成与异常处理
 
 服务内部通过 Dify 完成大部分安全分析逻辑：

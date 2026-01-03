@@ -40,3 +40,14 @@ class RiskMonitorResponse(BaseModel):
     detected_vulnerabilities: List[str]
     compliance_risks: List[str]
     ai_assessment: str
+
+class RSSItem(BaseModel):
+    title: str
+    link: str
+    description: Optional[str] = None
+    published: Optional[str] = None
+    source: str
+
+class RSSFeedResponse(BaseModel):
+    items: List[RSSItem]
+
