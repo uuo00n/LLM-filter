@@ -236,12 +236,35 @@ class SecurityService:
         if not text:
             return {}
         try:
+            # 尝试找到第一个 {
             start = text.find('{')
-            end = text.rfind('}') + 1
-            if start != -1 and end != -1:
+            if start == -1:
+                # 尝试直接解析，也许是 list [] 或者是其他合法 JSON
+                return json.loads(text)
+            
+            # 基于括号计数来提取最外层 JSON
+            count = 0
+            end = -1
+            
+            for i, char in enumerate(text[start:], start=start):
+                if char == '{':
+                    count += 1
+                elif char == '}':
+                    count -= 1
+                    if count == 0:
+                        end = i + 1
+                        break
+            
+            if end != -1:
                 json_str = text[start:end]
                 return json.loads(json_str)
+                
+            # 如果没找到闭合，回退到原来的逻辑
+            # start = text.find('{')
+            # end = text.rfind('}') + 1
+            # ... 但原来的逻辑有问题，这里不如直接尝试解析整个 text 或者报错
             return json.loads(text)
+            
         except Exception as e:
             logger.warning(f"JSON extraction error: {e}. Text snippet: {text[:100]}...")
             return {}

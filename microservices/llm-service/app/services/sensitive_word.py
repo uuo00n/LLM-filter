@@ -150,7 +150,7 @@ async def get_all_sensitive_words(
 async def check_sensitive_words(text: str) -> Dict[str, Any]:
     """检查文本中是否包含敏感词"""
     # 使用敏感词过滤器检查文本
-    result = sensitive_word_filter.check_text(text)
+    result = await sensitive_word_filter.check_text(text)
     return result
 
 async def record_sensitive_word_usage(

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     
     # Dify 配置
-    DIFY_API_URL: str = "http://datacenter.dldzxx.cn:8089/v1"
+    DIFY_API_URL: str = "http://192.168.6.6/v1"
     DIFY_API_KEY: str = "app-lkK33EQOVXXrjD9x3SKbItr7"
     
     # MongoDB 配置

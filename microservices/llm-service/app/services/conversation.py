@@ -107,7 +107,7 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
     current_title = conversation.get("title", "")
 
     # 检查敏感词
-    check_result = sensitive_word_filter.check_text(content)
+    check_result = await sensitive_word_filter.check_text(content)
     contains_sensitive = check_result["contains_sensitive_words"]
     sensitive_words = check_result["sensitive_words_found"]
     highest_severity = check_result["highest_severity"]

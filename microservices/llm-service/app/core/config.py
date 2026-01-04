@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama2")
 
     # Dify配置
-    DIFY_API_URL: str = os.getenv("DIFY_API_URL", "http://datacenter.dldzxx.cn:8089/v1")
-    DIFY_API_KEY: str = os.getenv("DIFY_API_KEY", "app-lkK33EQOVXXrjD9x3SKbItr7")
+    DIFY_API_URL: str = os.getenv("DIFY_API_URL", "http://192.168.6.6/v1")
+    DIFY_API_KEY: str = os.getenv("DIFY_API_KEY", "app-sLnrbNjEi1GiTDGgL2B2DwLZ")
     DIFY_RESPONSE_MODE: str = os.getenv("DIFY_RESPONSE_MODE", "streaming")
     DIFY_MESSAGE_ENDPOINT: str = os.getenv("DIFY_MESSAGE_ENDPOINT", "chat-messages")
 
