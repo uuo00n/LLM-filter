@@ -90,7 +90,7 @@ services:
       - OLLAMA_BASE_URL=http://datacenter.dldzxx.cn:11434/
       - OLLAMA_MODEL=deepseek-r1:14b
       # Dify Configuration
-      - DIFY_API_URL=http://datacenter.dldzxx.cn:8089/v1
+      - DIFY_API_URL=http://192.168.6.6/v1
       - DIFY_API_KEY=app-lkK33EQOVXXrjD9x3SKbItr7
     depends_on:
       - mongo
@@ -113,6 +113,8 @@ services:
       - JWT_SECRET=llm_filter_secure_secret_key_2025_update_must_be_32_bytes
       - DIFY_API_URL=http://datacenter.dldzxx.cn:8089/v1
       - DIFY_API_KEY=app-xTl0Ri6ir7cAuvngDtFe3hKP
+      - MONGODB_URL=mongodb://mongo:27017
+      - MONGODB_DB_NAME=security_service_db
     networks:
       - llm-network
 
