@@ -9,7 +9,7 @@
 
 **演讲参考：**  
 “各位好！前端安全更像是‘门口保安’，而后端安全才是‘教务系统的总闸门’：身份、权限、数据、审计、合规，都必须在服务端形成闭环。  
-在我们的校园 AI 智能助手项目里，后端并不是一个单体应用，而是由 **网关（Nginx）+ 三个微服务（Auth/Edu/LLM）**组成。今天我会沿着一条请求从入口到模型的路径，把我们的后端安全‘五道防线’讲清楚。”
+在我们的校园 AI 智能助手项目里，后端并不是一个单体应用，而是由 **网关（Nginx）+ 四个微服务（Auth/Edu/LLM/Security）**组成。今天我会沿着一条请求从入口到模型的路径，把我们的后端安全‘五道防线’讲清楚。”
 
 ---
 
@@ -28,6 +28,9 @@
   - 鉴权依赖：`microservices/llm-service/app/api/deps.py`  
   - 敏感词过滤：`microservices/llm-service/app/utils/sensitive_word_filter.py`  
   - 对话写入与审计：`microservices/llm-service/app/services/conversation.py`
+- **Security 层（Security Service / Python + FastAPI）**：AI 驱动的安全分析、风险监控、应急响应
+  - 入口：`microservices/security-service/app/main.py`
+  - 历史查询：`microservices/security-service/app/api/v1/endpoints.py`
 
 ---
 

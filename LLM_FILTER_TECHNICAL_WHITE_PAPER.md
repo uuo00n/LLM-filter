@@ -85,7 +85,7 @@ LLM-Filter 不仅仅是一个“过滤器”，它被定义为**AI 时代的防�
 
 LLM-Filter 的架构可以拆成两层理解：
 
-1) **系统级（Microservices）**：通过网关对外暴露统一入口，内部按领域拆成 Auth（认证/绑定）、Edu（教务/看板）、LLM（对话/过滤/审计）。
+1) **系统级（Microservices）**：通过网关对外暴露统一入口，内部按领域拆成 Auth（认证/绑定）、Edu（教务/看板）、LLM（对话/过滤/审计）、Security（安全/监控）。
 
 2) **服务内（Clean Architecture）**：以 LLM Service 为例，服务内部再使用整洁架构分层，保证可测试性与可替换性。
 
@@ -97,10 +97,13 @@ graph TD
     Gateway --> AuthSvc[Auth Service (Go/Gin)]
     Gateway --> EduSvc[Edu Service (Java/Spring Boot)]
     Gateway --> LLMSvc[LLM Service (Python/FastAPI)]
+    Gateway --> SecSvc[Security Service (Python/FastAPI)]
     AuthSvc --> PG[(PostgreSQL)]
     EduSvc --> PG
     LLMSvc --> Mongo[(MongoDB)]
+    SecSvc --> Mongo
     LLMSvc --> LLM[Ollama / Dify]
+    SecSvc --> LLM
 ```
 
 服务内从逻辑上划分为四层同心圆结构：
@@ -141,7 +144,7 @@ async with httpx.AsyncClient() as client:
    * 优势：外键/事务保障、便于做复杂查询与报表。
 
 2. **MongoDB（高写入 + 半结构化）**
-   * 适用：对话历史、敏感词库、过滤命中记录、审计轨迹等。
+   * 适用：对话历史、敏感词库、过滤命中记录、审计轨迹、安全分析日志等。
    * 优势：天然承载嵌套结构（messages 数组、元数据扩展），对迭代友好。
 
 这种组合让系统既能在“身份/教务”上获得关系模型的完整性，又能在“对话/审计”上保持 Schema 的弹性。对于 LLM Service，我们仍然使用 Pydantic 做应用层校验，避免 Schema-less 带来的数据漂移。
