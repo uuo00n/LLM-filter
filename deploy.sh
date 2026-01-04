@@ -37,9 +37,12 @@ if [ $? -eq 0 ]; then
     echo "服务状态:"
     $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml ps
     echo ""
-    echo "访问地址:"
-    echo "- API 网关: http://服务器IP:8080"
-    echo "- Swagger 文档: http://服务器IP:8080/docs/llm/"
+    echo "访问地址 (本地部署请使用 localhost，服务器部署请使用服务器IP):"
+    echo "- API 网关: http://localhost:8080"
+    echo "- Auth Service 文档: http://localhost:8080/docs/auth/"
+    echo "- Edu Service 文档: http://localhost:8080/docs/edu/"
+    echo "- LLM Service 文档: http://localhost:8080/docs/llm/"
+    echo "- Security Service 文档: http://localhost:8080/docs/security/"
 else
     echo -e "${YELLOW}部署过程中出现错误，请检查日志。${NC}"
 fi
