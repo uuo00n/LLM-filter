@@ -100,7 +100,9 @@ graph TD
     Gateway --> SecSvc[Security Service (Python/FastAPI)]
     AuthSvc --> PG[(PostgreSQL)]
     EduSvc --> PG
+    EduSvc --> Redis[(Redis)]
     LLMSvc --> Mongo[(MongoDB)]
+    LLMSvc --> Redis
     SecSvc --> Mongo
     LLMSvc --> LLM[Ollama / Dify]
     SecSvc --> LLM

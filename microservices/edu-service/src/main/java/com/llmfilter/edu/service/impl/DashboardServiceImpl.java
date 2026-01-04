@@ -9,6 +9,7 @@ import com.llmfilter.edu.security.UserContext;
 import com.llmfilter.edu.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -58,6 +59,7 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
+    @Cacheable(value = "student_today_summary", key = "#user.personId + '_' + T(java.time.LocalDate).now().toString()", unless = "#result == null")
     public StudentTodaySummary getStudentTodaySummary(UserContext user) {
         String personId = user.getPersonId();
         if (personId == null) {

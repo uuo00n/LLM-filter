@@ -52,8 +52,8 @@ docker-compose logs -f
 首先确保数据库在运行。你可以只通过 Docker 启动 DB：
 
 ```bash
-# 启动 Postgres 和 Mongo
-docker-compose up -d postgres mongo
+# 启动 Postgres, Mongo 和 Redis
+docker-compose up -d postgres mongo redis
 ```
 
 ### 2. 启动 Auth Service (Go)

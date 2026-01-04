@@ -35,7 +35,14 @@ async def add_sensitive_word(
     
     result = await db.db.sensitive_words.insert_one(sensitive_word.dict())
     
-    # 更新敏感词过滤器
+    # 清除 Redis 缓存并更新敏感词过滤器
+    try:
+        keys = await sensitive_word_filter.redis_client.keys("filter_cache:*")
+        if keys:
+            await sensitive_word_filter.redis_client.delete(*keys)
+    except Exception:
+        pass
+
     await sensitive_word_filter.load_sensitive_words()
     
     return str(result.inserted_id)
@@ -68,7 +75,14 @@ async def bulk_import_sensitive_words(words: List[SensitiveWordCreate]) -> int:
     # 批量插入数据库
     result = await db.db.sensitive_words.insert_many(word_models)
     
-    # 更新敏感词过滤器
+    # 清除 Redis 缓存并更新敏感词过滤器
+    try:
+        keys = await sensitive_word_filter.redis_client.keys("filter_cache:*")
+        if keys:
+            await sensitive_word_filter.redis_client.delete(*keys)
+    except Exception:
+        pass
+        
     await sensitive_word_filter.load_sensitive_words()
     
     return len(result.inserted_ids)
@@ -80,6 +94,16 @@ async def delete_sensitive_word(word_id: str) -> bool:
     
     # 更新敏感词过滤器
     if result.deleted_count > 0:
+        # 清除 Redis 中的所有过滤缓存
+        try:
+            # 注意：在生产环境中，SCAN 模式更安全，但 KEYS 在小数据量下更方便
+            # 这里简单处理，清除所有 filter_cache:* 键
+            keys = await sensitive_word_filter.redis_client.keys("filter_cache:*")
+            if keys:
+                await sensitive_word_filter.redis_client.delete(*keys)
+        except Exception:
+            pass
+            
         await sensitive_word_filter.load_sensitive_words()
         return True
     return False
