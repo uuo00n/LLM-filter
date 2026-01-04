@@ -4,6 +4,15 @@
 
 仓库地址：https://github.com/uuo00n/LLM-filter
 
+## 2026-01-04
+
+### 新增
+
+- 新增 **Security Service** 微服务，提供安全分析与风险监控能力。
+- Security Service: 支持 MongoDB 异步持久化分析与攻击建议记录。
+- Security Service: 提供历史记录查询接口，支持时间范围筛选。
+- 文档：更新 DEVELOPMENT.md, README.md, SPEAK.md, 白皮书等文档以反映最新架构。
+
 ## 2025-12-28
 
 ### 新增

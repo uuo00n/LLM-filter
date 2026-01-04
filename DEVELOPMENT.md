@@ -1,6 +1,12 @@
 # LLM Filter 项目启动与开发指南
 
-本文档旨在帮助开发人员快速搭建环境、启动服务并参与开发。本项目采用微服务架构，包含 Gateway (Nginx), Auth (Go), Edu (Java), LLM (Python) 四个服务组件。
+本文档旨在帮助开发人员快速搭建环境、启动服务并参与开发。本项目采用微服务架构，包含以下服务组件：
+
+1.  **Gateway (Nginx)**: 统一入口网关，负责路由分发。
+2.  **Auth Service (Go)**: 身份认证与用户管理服务。
+3.  **Edu Service (Java)**: 教务核心业务服务。
+4.  **LLM Service (Python)**: 大模型交互与编排服务。
+5.  **Security Service (Python)**: 安全分析与风险监控服务。
 
 ---
 
@@ -23,15 +29,18 @@ docker-compose logs -f
 
 ### 访问服务
 - **统一入口（网关）**: [http://localhost:8080](http://localhost:8080)
-- **LLM Swagger（通过网关）**: [http://localhost:8080/docs](http://localhost:8080/docs)
-- **Edu Swagger（通过网关）**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-- **Auth Swagger（直连）**: [http://localhost:8081/swagger/index.html](http://localhost:8081/swagger/index.html)
+- **文档聚合入口**:
+    - **Security Swagger**: [http://localhost:8080/docs/security/](http://localhost:8080/docs/security/)
+    - **LLM Swagger**: [http://localhost:8080/docs/llm/](http://localhost:8080/docs/llm/)
+    - **Edu Swagger**: [http://localhost:8080/docs/edu/](http://localhost:8080/docs/edu/)
+    - **Auth Swagger**: [http://localhost:8080/docs/auth/](http://localhost:8080/docs/auth/)
 
-端口约定：
+端口约定（Docker 外部映射）：
 - Gateway: 8080
 - Auth Service: 8081
 - Edu Service: 8082
 - LLM Service: 8000
+- Security Service: 8003
 
 ---
 
@@ -43,7 +52,7 @@ docker-compose logs -f
 首先确保数据库在运行。你可以只通过 Docker 启动 DB：
 
 ```bash
-# 只启动 Postgres 和 Mongo
+# 启动 Postgres 和 Mongo
 docker-compose up -d postgres mongo
 ```
 
@@ -91,6 +100,24 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+### 5. 启动 Security Service (Python)
+**目录**: `microservices/security-service`
+**要求**: Python 3.10+
+
+```bash
+cd microservices/security-service
+
+# 创建虚拟环境 (可选)
+python -m venv venv
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行服务 (建议使用 8003 端口以避免冲突)
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8003
+```
+
 ---
 
 ## 接口测试流程
@@ -135,6 +162,25 @@ curl -X POST http://localhost:8000/api/v1/conversations/<CONVERSATION_ID>/messag
   -d '{"content": "你好，请介绍一下你自己"}'
 ```
 
+### 4. 安全服务操作 (Security Service)
+Security Service 同样校验 JWT。
+
+```bash
+# 1) 查询历史分析记录 (需管理员权限)
+curl "http://localhost:8003/api/v1/security/analysis/history?limit=5" \
+  -H "Authorization: Bearer <TOKEN>"
+
+# 2) 提交新的风险分析请求
+curl -X POST "http://localhost:8003/api/v1/security/analysis" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "devices": [
+      {"name": "Core-Switch", "ip": "192.168.1.1", "status": "online", "logs": "high traffic"}
+    ]
+  }'
+```
+
 ---
 
 ## 目录结构说明
@@ -147,11 +193,13 @@ curl -X POST http://localhost:8000/api/v1/conversations/<CONVERSATION_ID>/messag
 └── microservices/            # 微服务源码目录
     ├── auth-service/         # [Go] 认证服务
     ├── edu-service/          # [Java] 教务服务
-    └── llm-service/          # [Python] LLM 核心服务
+    ├── llm-service/          # [Python] LLM 核心服务
+    └── security-service/     # [Python] 安全分析服务
 ```
 
 ## 常见问题
 
 1.  **端口冲突**：如果 `5432` 被本地 Postgres 占用，Docker 会映射到 `5433`。代码中已默认适配 `5433`，如需修改请检查 `.env` 和各服务的配置文件。
 2.  **Maven 下载慢**：请使用项目提供的 `microservices/edu-service/settings.xml`，已配置阿里云镜像。
-3.  **LLM 无法鉴权**：请确保 `SECRET_KEY` 与 Auth Service 的 `JWT_SECRET` 一致，否则会出现 401。
+3.  **鉴权失败 (401)**：请确保所有服务 (`.env` 或配置文件中) 的 `JWT_SECRET` / `SECRET_KEY` 保持一致。
+
