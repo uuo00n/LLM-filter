@@ -89,7 +89,7 @@ services:
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - TERM_START_DATE=2025-09-01
-      - OLLAMA_BASE_URL=http://datacenter.dldzxx.cn:11434/
+      - OLLAMA_BASE_URL=http://192.168.6.6:11434/
       - OLLAMA_MODEL=deepseek-r1:14b
       # Dify Configuration
       - DIFY_API_URL=http://192.168.6.6/v1
