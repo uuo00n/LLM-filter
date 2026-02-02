@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
 
+    # Zabbix 配置
+    ZABBIX_URL: str = os.getenv("ZABBIX_URL", "http://localhost/zabbix/api_jsonrpc.php")
+    ZABBIX_USERNAME: str = os.getenv("ZABBIX_USERNAME", "Admin")
+    ZABBIX_PASSWORD: str = os.getenv("ZABBIX_PASSWORD", "zabbix")
+    
+    # 数据同步配置
+    ZABBIX_SYNC_INTERVAL: int = int(os.getenv("ZABBIX_SYNC_INTERVAL", "3600"))  # 1小时
+    ZABBIX_AUTO_SYNC: bool = os.getenv("ZABBIX_AUTO_SYNC", "true").lower() == "true"
+
     class Config:
         case_sensitive = True
 

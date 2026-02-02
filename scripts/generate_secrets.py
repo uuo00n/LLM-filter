@@ -252,9 +252,16 @@ def generate_env_file():
         'DIFY_API_KEY': 'your_dify_api_key_here',
         'DIFY_RESPONSE_MODE': 'streaming',
         'DIFY_MESSAGE_ENDPOINT': 'chat-messages',
-        'MONGODB_URL': 'mongodb://mongo:27017',
-        'MONGODB_DB_NAME': 'security_service_db',
-        'REDIS_HOST': 'redis',
+         'MONGODB_URL': 'mongodb://mongo:27017',
+         'MONGODB_DB_NAME': 'security_service_db',
+         'ZABBIX_URL': 'http://localhost/zabbix/api_jsonrpc.php',
+         'ZABBIX_USERNAME': 'Admin',
+         'ZABBIX_PASSWORD': generate_db_password(20),
+         'ZABBIX_SYNC_INTERVAL': '3600',
+         'ZABBIX_AUTO_SYNC': 'true',
+         'LOG_LEVEL': 'INFO',
+         'LOG_FORMAT': 'json',
+         'REDIS_HOST': 'redis',
         'REDIS_PORT': '6379',
         'REDIS_PASSWORD': generate_db_password(16),
         'REDIS_DB': '0',
@@ -335,6 +342,21 @@ DIFY_MESSAGE_ENDPOINT={values['DIFY_MESSAGE_ENDPOINT']}
 MONGODB_URL={values['MONGODB_URL']}
 DB_NAME={values['DB_NAME']}
 MONGODB_DB_NAME={values['MONGODB_DB_NAME']}
+
+# ============================================================
+# 🖥️ Zabbix 监控系统配置
+# ============================================================
+ZABBIX_URL={values['ZABBIX_URL']}
+ZABBIX_USERNAME={values['ZABBIX_USERNAME']}
+ZABBIX_PASSWORD={values['ZABBIX_PASSWORD']}
+ZABBIX_SYNC_INTERVAL={values['ZABBIX_SYNC_INTERVAL']}
+ZABBIX_AUTO_SYNC={values['ZABBIX_AUTO_SYNC']}
+
+# ============================================================
+# 📝 日志配置
+# ============================================================
+LOG_LEVEL={values['LOG_LEVEL']}
+LOG_FORMAT={values['LOG_FORMAT']}
 
 # ============================================================
 # 🚀 Redis 配置

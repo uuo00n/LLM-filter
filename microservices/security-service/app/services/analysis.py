@@ -6,28 +6,75 @@ from pydantic import ValidationError
 from app.schemas.payloads import *
 from app.core.config import settings
 from app.core.database import db
+from app.services.zabbix_service import ZabbixService
 import logging
 
 logger = logging.getLogger(__name__)
 
 class SecurityService:
+    def __init__(self, zabbix_service: ZabbixService):
+        """
+        初始化安全服务
+        :param zabbix_service: Zabbix数据服务
+        """
+        self.zabbix_service = zabbix_service
     async def analyze_risks(self, devices: List[DeviceInfo] = None) -> SecurityAnalysisResponse:
         """
-        任务：风险分析
+        任务：风险分析 - 使用真实Zabbix数据
         """
         if not devices:
+            # 从Zabbix自动采集设备数据
+            try:
+                logger.info("未提供设备数据，从Zabbix自动采集...")
+                zabbix_data = await self.zabbix_service.collect_device_data()
+                devices_data = zabbix_data.get("devices", [])
+                
+                # 转换为DeviceInfo对象
+                devices = []
+                for device_data in devices_data:
+                    device = DeviceInfo(
+                        id=device_data.get("id", ""),
+                        name=device_data.get("name", ""),
+                        type=device_data.get("type", "unknown"),
+                        status=device_data.get("status", "unknown"),
+                        logs=device_data.get("logs", [])
+                    )
+                    devices.append(device)
+                    
+                logger.info(f"从Zabbix采集到 {len(devices)} 台设备")
+            except Exception as e:
+                logger.error(f"从Zabbix采集设备数据失败: {e}")
+                # 使用空设备列表继续，让LLM处理
+                devices = []
+        
+        if not devices:
+            # 如果依然没有设备数据，创建空的设备列表
             devices = []
         
-        # 1. 准备数据，不再拼接 Prompt，只序列化数据
-        device_data = [d.dict() for d in devices] # 假设 Pydantic 模型有 .dict()，或者手动转 dict
+        # 1. 准备数据，序列化设备数据
+        device_data = [d.model_dump() for d in devices]
         
         # 2. 构造 Dify 所需的变量 inputs
         inputs = {
             "task_type": "analysis",  # 告诉 Dify 执行哪个任务分支
-            "context_data": json.dumps(device_data, ensure_ascii=False) # 将复杂数据转为字符串传递
+            "context_data": json.dumps(device_data, ensure_ascii=False)  # 将复杂数据转为字符串传递
         }
         
-        return await self._call_llm(inputs, SecurityAnalysisResponse)
+        # 3. 调用LLM进行分析
+        result = await self._call_llm(inputs, SecurityAnalysisResponse)
+        
+        # 4. 异步存储结果到 MongoDB
+        try:
+            if db.db is not None:
+                log_entry = result.model_dump()
+                log_entry["created_at"] = datetime.now(datetime.timezone.utc)
+                log_entry["device_count"] = len(devices)
+                await db.db.security_analysis_logs.insert_one(log_entry)
+                logger.info("安全分析结果已保存到MongoDB")
+        except Exception as e:
+            logger.error(f"保存分析结果到MongoDB失败: {e}")
+        
+        return result
 
     async def get_attack_advice(self, attack_type: str, target: str, logs: str) -> AttackAdviceResponse:
         """
@@ -49,30 +96,159 @@ class SecurityService:
 
     async def generate_report(self) -> SecurityReportResponse:
         """
-        任务：生成日报
+        任务：生成日报 - 使用真实数据
         """
-        # 注意：此处应从真实数据源获取状态，当前暂无数据源连接
-        data = {
-            "date": datetime.now().strftime('%Y-%m-%d'),
-            "device_status": "暂无数据 (需接入数据源)",
-            "intercept_count": 0
-        }
+        try:
+            # 从Zabbix获取实时数据
+            logger.info("从Zabbix采集数据生成安全报告...")
+            
+            # 采集设备数据
+            device_data = await self.zabbix_service.collect_device_data()
+            devices = device_data.get("devices", [])
+            
+            # 统计设备状态
+            total_devices = len(devices)
+            up_devices = sum(1 for d in devices if d.get("status") == "up")
+            down_devices = sum(1 for d in devices if d.get("status") == "down")
+            problem_devices = sum(1 for d in devices if d.get("logs"))
+            
+            # 构建报告数据
+            report_data = {
+                "date": datetime.now().strftime('%Y-%m-%d'),
+                "device_status": {
+                    "total_devices": total_devices,
+                    "up_devices": up_devices,
+                    "down_devices": down_devices,
+                    "problem_devices": problem_devices
+                },
+                "incident_summary": {
+                    "total_events": sum(len(d.get("logs", [])) for d in devices),
+                    "critical_events": 0,  # 可以从Zabbix触发器优先级统计
+                    "high_events": 0,
+                    "medium_events": 0,
+                    "low_events": 0,
+                    "resolved_events": 0,
+                    "unresolved_events": problem_devices
+                },
+                "top_issues": self._extract_top_issues(devices),
+                "real_time_data": True  # 标识使用真实数据
+            }
+            
+            logger.info(f"成功采集到 {total_devices} 台设备数据，其中 {problem_devices} 台有问题")
+            
+        except Exception as e:
+            logger.error(f"从Zabbix采集数据失败，使用备用数据: {e}")
+            # 备用数据（当Zabbix不可用时）
+            report_data = {
+                "date": datetime.now().strftime('%Y-%m-%d'),
+                "device_status": {
+                    "total_devices": 0,
+                    "up_devices": 0,
+                    "down_devices": 0,
+                    "problem_devices": 0,
+                    "status": "zabbix_unavailable"
+                },
+                "incident_summary": {
+                    "total_events": 0,
+                    "critical_events": 0,
+                    "high_events": 0,
+                    "medium_events": 0,
+                    "low_events": 0,
+                    "resolved_events": 0,
+                    "unresolved_events": 0
+                },
+                "top_issues": ["Zabbix服务不可用，无法获取实时数据"],
+                "real_time_data": False  # 标识使用备用数据
+            }
         
         inputs = {
             "task_type": "report",
-            "context_data": json.dumps(data, ensure_ascii=False)
+            "context_data": json.dumps(report_data, ensure_ascii=False)
         }
         
-        return await self._call_llm(inputs, SecurityReportResponse)
+        result = await self._call_llm(inputs, SecurityReportResponse)
+        
+        # 异步存储结果到 MongoDB
+        try:
+            if db.db is not None:
+                log_entry = result.model_dump()
+                log_entry["created_at"] = datetime.now(datetime.timezone.utc)
+                log_entry["report_date"] = report_data["date"]
+                log_entry["real_time_data"] = report_data.get("real_time_data", False)
+                await db.db.security_report_logs.insert_one(log_entry)
+                logger.info("安全报告结果已保存到MongoDB")
+        except Exception as e:
+            logger.error(f"保存报告结果到MongoDB失败: {e}")
+        
+        return result
 
     async def monitor_risks(self) -> RiskMonitorResponse:
         """
-        [MOCK] 实时风险监控
+        实时风险监控 - 使用真实数据
         """
+        try:
+            logger.info("从Zabbix采集监控数据...")
+            
+            # 采集设备数据
+            device_data = await self.zabbix_service.collect_device_data()
+            devices = device_data.get("devices", [])
+            
+            # 分析设备状态
+            detected_vulnerabilities = []
+            compliance_risks = []
+            
+            for device in devices:
+                device_name = device.get("name", "未知设备")
+                device_type = device.get("type", "unknown")
+                logs = device.get("logs", [])
+                
+                # 基于设备类型和日志分析潜在风险
+                if device_type == "switch":
+                    # 交换机常见风险
+                    if any("down" in log.lower() for log in logs):
+                        compliance_risks.append(f"交换机 {device_name} 离线 - 网络中断风险")
+                    if any("link down" in log.lower() for log in logs):
+                        detected_vulnerabilities.append(f"网络接口异常 - {device_name}")
+                
+                elif device_type == "firewall":
+                    # 防火墙常见风险
+                    if any("packet loss" in log.lower() for log in logs):
+                        detected_vulnerabilities.append(f"防火墙 {device_name} 包丢失 - 性能问题")
+                    if any("connection" in log.lower() and "failed" in log.lower() for log in logs):
+                        compliance_risks.append(f"防火墙 {device_name} 连接失败 - 安全策略检查")
+                
+                elif device_type == "server":
+                    # 服务器常见风险
+                    if any("cpu" in log.lower() and "high" in log.lower() for log in logs):
+                        detected_vulnerabilities.append(f"服务器 {device_name} CPU 高负载 - 性能风险")
+                    if any("memory" in log.lower() and "usage" in log.lower() for log in logs):
+                        compliance_risks.append(f"服务器 {device_name} 内存使用异常 - 资源优化")
+                
+                # 通用风险检测
+                for log in logs:
+                    if any(priority in log for priority in ["Priority: 5", "Priority: 4"]):
+                        detected_vulnerabilities.append(f"高优先级告警 - {device_name}: {log[:50]}...")
+            
+            # 如果没有检测到具体风险，提供通用风险评估
+            if not detected_vulnerabilities and not compliance_risks:
+                detected_vulnerabilities = ["系统运行正常，未检测到明显安全漏洞"]
+                compliance_risks = ["系统符合基本安全要求，建议定期审计"]
+            
+            ai_assessment = f"系统安全状态: {self._assess_security_risk_level(devices)}"
+            
+            logger.info(f"监控分析完成，发现 {len(detected_vulnerabilities)} 个漏洞和 {len(compliance_risks)} 个合规风险")
+            
+        except Exception as e:
+            logger.error(f"从Zabbix采集监控数据失败: {e}")
+            # 备用监控数据
+            detected_vulnerabilities = ["监控系统不可用，无法获取实时风险数据"]
+            compliance_risks = ["系统状态未知，请检查Zabbix连接"]
+            ai_assessment = "监控系统服务异常，无法进行有效风险评估"
+        
         return RiskMonitorResponse(
-            detected_vulnerabilities=["CVE-2024-0001 (Critical)", "Weak SSH Config"],
-            compliance_risks=["Password policy outdated", "Unencrypted backup found"],
-            ai_assessment="System security posture is stable but requires attention on recent CVEs."
+            detected_vulnerabilities=detected_vulnerabilities,
+            compliance_risks=compliance_risks,
+            ai_assessment=ai_assessment
         )
 
     async def get_analysis_history(self, start_date: datetime = None, end_date: datetime = None, limit: int = 20) -> HistoryQueryResponse:
@@ -201,6 +377,49 @@ class SecurityService:
             logger.error(f"LLM Call Error: {e}")
 
         return self._build_default_response(model_cls)
+
+    def _extract_top_issues(self, devices: List[Dict]) -> List[str]:
+        """
+        从设备日志中提取主要问题
+        """
+        issues = []
+        
+        for device in devices:
+            device_name = device.get("name", "未知设备")
+            logs = device.get("logs", [])
+            
+            # 分析日志中的关键问题
+            for log in logs:
+                if any(keyword in log.lower() for keyword in ["critical", "down", "failed", "error", "high priority"]):
+                    issues.append(f"{device_name}: {log[:80]}...")
+                    break  # 每个设备只取一个问题
+        
+        # 如果没有问题，返回正常状态
+        if not issues:
+            issues = ["系统运行正常，未发现明显问题"]
+        
+        return issues[:5]  # 只返回前5个主要问题
+
+    def _assess_security_risk_level(self, devices: List[Dict]) -> str:
+        """
+        评估系统整体安全风险等级
+        """
+        total_devices = len(devices)
+        problem_devices = sum(1 for d in devices if d.get("logs"))
+        
+        if total_devices == 0:
+            return "未知 - 无设备数据"
+        
+        problem_ratio = problem_devices / total_devices
+        
+        if problem_ratio >= 0.3:
+            return "高风险 - 多个设备出现异常"
+        elif problem_ratio >= 0.1:
+            return "中等风险 - 部分设备存在异常"
+        elif problem_ratio > 0:
+            return "低风险 - 少量设备出现异常"
+        else:
+            return "安全 - 所有设备运行正常"
 
     def _clean_json_string(self, text: str) -> str:
         """清洗 Markdown 代码块标记和思维链标签"""

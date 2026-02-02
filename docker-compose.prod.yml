@@ -86,8 +86,8 @@ services:
       dockerfile: Dockerfile
     container_name: llm-filter-llm
     restart: always
-    # 生产环境不需要 --reload
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
+    # 生产环境：移除--reload，使用多worker提高性能
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips '*'
     ports:
       - "${LLM_SERVICE_PORT:-8000}:8000"
     # 生产环境移除代码挂载，使用镜像内的代码
@@ -130,8 +130,8 @@ services:
       dockerfile: Dockerfile
     container_name: llm-filter-security
     restart: always
-    # 生产环境不需要 --reload
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
+    # 生产环境：移除--reload，使用多worker提高性能
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips '*'
     ports:
       - "${SECURITY_SERVICE_PORT:-8003}:8000"
     # 生产环境移除代码挂载
@@ -147,6 +147,13 @@ services:
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_DB=${REDIS_DB}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ZABBIX_URL=${ZABBIX_URL:-http://localhost/zabbix/api_jsonrpc.php}
+      - ZABBIX_USERNAME=${ZABBIX_USERNAME:-Admin}
+      - ZABBIX_PASSWORD=${ZABBIX_PASSWORD:-zabbix}
+      - ZABBIX_SYNC_INTERVAL=${ZABBIX_SYNC_INTERVAL:-3600}
+      - ZABBIX_AUTO_SYNC=${ZABBIX_AUTO_SYNC:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
       - TZ=${TZ}
     networks:
       - llm-network
