@@ -1,5 +1,4 @@
 import os
-# Pydantic v2 中 BaseSettings 已迁移到 pydantic-settings
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -15,23 +14,23 @@ class Settings(BaseSettings):
     APP_NAME: str = "LLM过滤系统"
     API_V1_STR: str = "/api/v1"
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
-    
+
     # 数据库配置
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     DB_NAME: str = os.getenv("DB_NAME", "llm_filter_db")
-    
+
     # JWT配置
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your_secret_key_here")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-    
+
     # Ollama配置
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama2")
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://192.168.6.6:11434/")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "deepseek-r1:14b")
 
     # Dify配置
     DIFY_API_URL: str = os.getenv("DIFY_API_URL", "http://192.168.6.6/v1")
-    DIFY_API_KEY: str = os.getenv("DIFY_API_KEY", "app-sLnrbNjEi1GiTDGgL2B2DwLZ")
+    DIFY_API_KEY: str = os.getenv("DIFY_API_KEY", "")
     DIFY_RESPONSE_MODE: str = os.getenv("DIFY_RESPONSE_MODE", "streaming")
     DIFY_MESSAGE_ENDPOINT: str = os.getenv("DIFY_MESSAGE_ENDPOINT", "chat-messages")
 
@@ -42,7 +41,7 @@ class Settings(BaseSettings):
     CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "*")
     GITHUB_DEFAULT_REPO: str = os.getenv("GITHUB_DEFAULT_REPO", "")
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-    
+
     # 学期配置
     TERM_START_DATE: str = os.getenv("TERM_START_DATE", "2025-09-01")  # 默认开学日期
 

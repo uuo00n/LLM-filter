@@ -37,21 +37,9 @@ func main() {
 	dbName := os.Getenv("DB_NAME")
 	dbPort := os.Getenv("DB_PORT")
 
-	// 默认值处理（用于本地开发）
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-	if dbUser == "" {
-		dbUser = "admin"
-	}
-	if dbPassword == "" {
-		dbPassword = "password" // 请确保本地有此密码的数据库或修改此处
-	}
-	if dbName == "" {
-		dbName = "llm_filter_db"
-	}
-	if dbPort == "" {
-		dbPort = "5433"
+	// 必需的环境变量检查
+	if dbHost == "" || dbUser == "" || dbPassword == "" || dbName == "" || dbPort == "" {
+		log.Fatal("Missing required database environment variables: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT")
 	}
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
@@ -111,7 +99,11 @@ func main() {
 }
 
 func initAdminUser(repo *repository.UserRepository) {
-	adminUsername := "admin"
+	adminUsername := os.Getenv("ADMIN_USERNAME")
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+
 	exists, err := repo.ExistsByUsername(adminUsername)
 	if err != nil {
 		log.Printf("Failed to check admin user existence: %v", err)
@@ -123,7 +115,7 @@ func initAdminUser(repo *repository.UserRepository) {
 
 		adminPassword := os.Getenv("ADMIN_PASSWORD")
 		if adminPassword == "" {
-			adminPassword = "password123"
+			log.Fatal("ADMIN_PASSWORD environment variable is required for initial admin user creation")
 		}
 
 		hashedPwd, err := utils.HashPassword(adminPassword)
@@ -132,11 +124,16 @@ func initAdminUser(repo *repository.UserRepository) {
 			return
 		}
 
+		adminEmail := os.Getenv("ADMIN_EMAIL")
+		if adminEmail == "" {
+			adminEmail = "admin@example.com"
+		}
+
 		adminUser := &model.User{
 			Username:  adminUsername,
-			Email:     "admin@example.com",
+			Email:     adminEmail,
 			Password:  hashedPwd,
-			Role:      "administrator", // 兼容旧系统的最高权限角色
+			Role:      "administrator",
 			RoleLevel: 5,
 			Edition:   "edu",
 		}
@@ -144,7 +141,7 @@ func initAdminUser(repo *repository.UserRepository) {
 		if err := repo.Create(adminUser); err != nil {
 			log.Printf("Failed to create admin user: %v", err)
 		} else {
-			log.Printf("Admin user created successfully. Username: %s, Password: %s", adminUsername, adminPassword)
+			log.Printf("Admin user created successfully. Username: %s", adminUsername)
 		}
 	} else {
 		log.Println("Admin user already exists.")
