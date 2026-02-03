@@ -1,11 +1,11 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from app.schemas.payloads import *
 from app.services.analysis import SecurityService
 from app.services.rss import RSSService
 from app.services.zabbix_service import ZabbixService
 from app.core.security import get_current_admin
-from app.core.database import db
-from datetime import datetime, timezone
 
 router = APIRouter()
 zabbix_service = ZabbixService()
@@ -14,15 +14,7 @@ rss_service = RSSService()
 
 @router.post("/analysis", response_model=SecurityAnalysisResponse)
 async def analyze_risks(request: SecurityAnalysisRequest, admin: dict = Depends(get_current_admin)):
-    result = await service.analyze_risks(request.devices)
-    
-    # 异步存储结果到 MongoDB
-    if db.db is not None:
-        log_entry = result.model_dump()
-        log_entry["created_at"] = datetime.now(timezone.utc)
-        await db.db.security_analysis_logs.insert_one(log_entry)
-        
-    return result
+    return await service.analyze_risks(request.devices)
 
 @router.get("/analysis/history", response_model=HistoryQueryResponse)
 async def get_analysis_history(
@@ -38,15 +30,12 @@ async def get_analysis_history(
 
 @router.post("/attack-advice", response_model=AttackAdviceResponse)
 async def get_attack_advice(request: AttackAdviceRequest, admin: dict = Depends(get_current_admin)):
-    result = await service.get_attack_advice(request.attack_type, request.target_device, request.logs)
-    
-    # 异步存储结果到 MongoDB
-    if db.db is not None:
-        log_entry = result.model_dump()
-        log_entry["created_at"] = datetime.now(timezone.utc)
-        await db.db.attack_advice_logs.insert_one(log_entry)
-        
-    return result
+    return await service.get_attack_advice(
+        attack_type=request.attack_type,
+        target=request.target_device,
+        logs=request.logs,
+        severity=request.severity,
+    )
 
 @router.get("/attack-advice/history", response_model=HistoryQueryResponse)
 async def get_attack_advice_history(

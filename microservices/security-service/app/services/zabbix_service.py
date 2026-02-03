@@ -359,6 +359,14 @@ class ZabbixService:
         self.last_sync_time = None
         self._initialize_collector()
 
+    async def _run_blocking(self, func, *args, **kwargs):
+        try:
+            to_thread = asyncio.to_thread
+        except AttributeError:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+        return await to_thread(func, *args, **kwargs)
+
     def _initialize_collector(self):
         """初始化数据采集器"""
         try:
@@ -376,22 +384,22 @@ class ZabbixService:
         """采集设备数据"""
         if not self.collector:
             raise Exception("Zabbix collector未初始化，请检查Zabbix配置")
-        
-        return self.collector.get_security_data_for_analysis()
+
+        return await self._run_blocking(self.collector.get_security_data_for_analysis)
 
     async def collect_cpu_data(self):
         """采集CPU和硬件数据"""
         if not self.collector:
             raise Exception("Zabbix collector未初始化，请检查Zabbix配置")
-        
-        return self.collector.get_cpu_data()
+
+        return await self._run_blocking(self.collector.get_cpu_data)
 
     async def collect_network_data(self):
         """采集网络接口数据"""
         if not self.collector:
             raise Exception("Zabbix collector未初始化，请检查Zabbix配置")
-        
-        return self.collector.get_network_data()
+
+        return await self._run_blocking(self.collector.get_network_data)
 
     async def sync_data(self):
         """同步数据"""

@@ -1,6 +1,6 @@
 import json
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from pydantic import ValidationError
 from app.schemas.payloads import *
@@ -67,7 +67,7 @@ class SecurityService:
         try:
             if db.db is not None:
                 log_entry = result.model_dump()
-                log_entry["created_at"] = datetime.now(datetime.timezone.utc)
+                log_entry["created_at"] = datetime.now(timezone.utc)
                 log_entry["device_count"] = len(devices)
                 await db.db.security_analysis_logs.insert_one(log_entry)
                 logger.info("安全分析结果已保存到MongoDB")
@@ -76,23 +76,41 @@ class SecurityService:
         
         return result
 
-    async def get_attack_advice(self, attack_type: str, target: str, logs: str) -> AttackAdviceResponse:
+    async def get_attack_advice(self, attack_type: str, target: str, logs: str, severity: Optional[str] = None) -> AttackAdviceResponse:
         """
         任务：攻击应急建议
         """
-        # 构造结构化数据
         data = {
             "attack_type": attack_type,
             "target_device": target,
-            "logs": logs
+            "severity": severity,
+            "logs": logs,
         }
-        
+
         inputs = {
             "task_type": "advice",
-            "context_data": json.dumps(data, ensure_ascii=False)
+            "context_data": json.dumps(data, ensure_ascii=False),
         }
-        
-        return await self._call_llm(inputs, AttackAdviceResponse)
+
+        result = await self._call_llm(inputs, AttackAdviceResponse)
+
+        try:
+            if db.db is not None:
+                log_entry = result.model_dump()
+                log_entry.update(
+                    {
+                        "created_at": datetime.now(timezone.utc),
+                        "attack_type": attack_type,
+                        "target_device": target,
+                        "severity": severity,
+                    }
+                )
+                await db.db.attack_advice_logs.insert_one(log_entry)
+                logger.info("攻击建议结果已保存到MongoDB")
+        except Exception as e:
+            logger.error(f"保存攻击建议结果到MongoDB失败: {e}")
+
+        return result
 
     async def generate_report(self) -> SecurityReportResponse:
         """
@@ -172,7 +190,7 @@ class SecurityService:
         try:
             if db.db is not None:
                 log_entry = result.model_dump()
-                log_entry["created_at"] = datetime.now(datetime.timezone.utc)
+                log_entry["created_at"] = datetime.now(timezone.utc)
                 log_entry["report_date"] = report_data["date"]
                 log_entry["real_time_data"] = report_data.get("real_time_data", False)
                 await db.db.security_report_logs.insert_one(log_entry)
@@ -302,6 +320,10 @@ class SecurityService:
         return HistoryQueryResponse(total=total, items=items)
 
     async def _call_llm(self, inputs: Dict[str, Any], model_cls):
+        if not settings.DIFY_API_URL or not settings.DIFY_API_KEY:
+            logger.warning("Dify 未配置（缺少 DIFY_API_URL 或 DIFY_API_KEY），跳过 LLM 调用并返回默认结果")
+            return self._build_default_response(model_cls)
+
         try:
             url = f"{settings.DIFY_API_URL.rstrip('/')}/chat-messages"
             headers = {
@@ -327,14 +349,10 @@ class SecurityService:
             payload = {
                 "inputs": inputs,
                 "query": query_prompt,
-                "response_mode": "streaming",
+                "response_mode": settings.DIFY_RESPONSE_MODE,
                 "conversation_id": "",
                 "user": "security-system-api",
             }
-
-            # DEBUG LOG: 打印实际发送的 Payload
-            logger.info(f"Sending request to Dify. URL: {url}")
-            logger.info(f"Payload inputs: {json.dumps(inputs, ensure_ascii=False)}")
 
             full_answer = ""
             async with httpx.AsyncClient() as client:
@@ -437,7 +455,7 @@ class SecurityService:
         # 但通常思考在前，正文在后。如果没闭合，说明正文还没出来。
         # 这里保守处理：如果剩下内容全是思考，那就全删了，返回空串，由上层处理为空的情况。
         if '<think>' in text:
-             text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+            text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
 
         # 3. 清洗 Markdown 标记
         if "```json" in text:
