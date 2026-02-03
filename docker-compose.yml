@@ -150,7 +150,7 @@ services:
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_DB=${REDIS_DB}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - ZABBIX_URL=${ZABBIX_URL:-http://localhost/zabbix/api_jsonrpc.php}
+      - ZABBIX_URL=${ZABBIX_URL:-http://localhost}
       - ZABBIX_USERNAME=${ZABBIX_USERNAME:-Admin}
       - ZABBIX_PASSWORD=${ZABBIX_PASSWORD:-zabbix}
       - ZABBIX_SYNC_INTERVAL=${ZABBIX_SYNC_INTERVAL:-3600}

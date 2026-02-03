@@ -24,6 +24,10 @@ class ZabbixDataCollector:
 
     def _get_api_url(self):
         """返回完整的 API 地址"""
+        if self.zabbix_url.endswith("api_jsonrpc.php"):
+            return self.zabbix_url
+        if self.zabbix_url.endswith("/zabbix"):
+            return f"{self.zabbix_url}/api_jsonrpc.php"
         return f"{self.zabbix_url}/zabbix/api_jsonrpc.php"
 
     def login(self):
@@ -87,6 +91,10 @@ class ZabbixDataCollector:
 
     def _call_api(self, method: str, params: dict):
         """通用 API 调用"""
+        return self._call_api_with_retry(method, params, retry_count=1)
+
+    def _call_api_with_retry(self, method: str, params: dict, retry_count: int = 0):
+        """带重试机制的 API 调用"""
         payload = {
             "jsonrpc": "2.0",
             "method": method,
@@ -105,7 +113,19 @@ class ZabbixDataCollector:
             data = response.json()
             if "error" in data:
                 err = data["error"]
-                raise Exception(f"[{err.get('code')}] {err.get('message')} - {err.get('data', '')}")
+                error_msg = err.get('message', '')
+                error_data = err.get('data', '')
+                
+                # 检查是否是认证相关错误
+                # Zabbix API 错误码: -32602 (Invalid params) 有时也用于 session 失效
+                # 常见 Session 错误信息: "Session terminated", "Not authorized"
+                if retry_count > 0 and ("Session" in error_data or "authorized" in error_data or "auth" in error_msg.lower()):
+                    logger.warning(f"Zabbix API 认证失败 ({error_msg} - {error_data})，尝试重新登录...")
+                    self.login()
+                    # 更新 auth token 后重试
+                    return self._call_api_with_retry(method, params, retry_count=retry_count - 1)
+                
+                raise Exception(f"[{err.get('code')}] {error_msg} - {error_data}")
             return data["result"]
         except Exception as e:
             raise Exception(f"API 调用失败 ({method}): {e}")
