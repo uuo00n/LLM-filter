@@ -6,6 +6,30 @@
 
 系统采用 **Go (认证)** + **Java (教务)** + **Python (LLM)** 的混合技术栈，充分发挥各语言优势，通过 **Docker Compose** 统一编排部署。
 
+## 快速开始（只使用 `start.sh`）
+
+```bash
+# 1) 首次生成 .env
+./start.sh init-env
+
+# 2) 启动全部服务
+./start.sh up
+
+# 3) 查看状态与日志
+./start.sh ps
+./start.sh logs
+```
+
+`.env` 使用说明：
+1. `./start.sh init-env` 会自动生成根目录 `.env`。
+2. 启动时 `./start.sh up` 会把 `.env` 注入所有容器。
+3. 修改 `.env` 后可重构容器生效：`./start.sh rebuild`（或全量重启：`./start.sh down && ./start.sh up`）。
+4. 如果 `.env` 权限异常，可执行：`sudo chown $USER:staff .env && chmod 640 .env`。
+
+常用维护命令：
+- `./start.sh rebuild [service]`：重构容器（默认全部，可指定服务）
+- `./start.sh rm <service...>`：删除指定容器（可多个）
+
 ## 系统架构
 
 本项目包含以下核心服务，通过 **Gateway (Nginx)** 统一对外暴露：

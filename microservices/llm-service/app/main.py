@@ -3,7 +3,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.db.mongodb import connect_to_mongo, close_mongo_connection, client
+from app.db.mongodb import connect_to_mongo, close_mongo_connection, db
 from app.utils.sensitive_word_filter import sensitive_word_filter
 from datetime import datetime
 
@@ -84,7 +84,7 @@ async def health_check():
     """健康检查端点"""
     try:
         # 检查数据库连接
-        db_status = "ok" if client else "error"
+        db_status = "ok" if db.client else "error"
         
         return {
             "status": "healthy",
@@ -103,7 +103,7 @@ async def readiness_check():
     """就绪检查端点"""
     try:
         # 检查关键依赖是否就绪
-        if not client:
+        if not db.client:
             return {
                 "status": "not_ready",
                 "timestamp": datetime.now().isoformat(),

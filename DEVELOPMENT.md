@@ -10,21 +10,45 @@
 
 ---
 
-## 快速启动（Docker）
+## 快速启动（统一脚本）
 
 ### 前置要求
-- Docker & Docker Compose
-- 可选：根目录 `.env`（建议生产/团队环境使用，避免把密钥写进配置文件）
+- Docker
+- Docker Compose（`docker compose` 或 `docker-compose`）
+- Python3（用于首次生成 `.env`）
 
-### 启动命令
+### 推荐流程（只用 `start.sh`）
 在项目根目录执行：
 
 ```bash
-# 构建并后台启动所有服务
-docker-compose up -d --build
+# 1) 首次生成 .env
+./start.sh init-env
 
-# 查看运行日志
-docker-compose logs -f
+# 2) 启动全部服务
+./start.sh up
+
+# 3) 查看状态 / 日志
+./start.sh ps
+./start.sh logs
+```
+
+### `.env` 如何生成和使用
+1. 执行 `./start.sh init-env` 会调用 `scripts/generate_secrets.py` 自动生成根目录 `.env`。
+2. 生成后至少检查这些配置：`DB_PASSWORD`、`JWT_SECRET`、`DIFY_API_KEY`。
+3. `./start.sh up` 启动时会自动读取根目录 `.env` 注入各服务容器。
+4. 修改 `.env` 后，优先执行 `./start.sh rebuild` 使配置生效（或 `./start.sh down && ./start.sh up` 全量重启）。
+
+### 常用脚本命令
+```bash
+./start.sh up            # 启动全部服务
+./start.sh rebuild       # 重构全部服务容器
+./start.sh rebuild auth-service  # 重构指定服务容器
+./start.sh down          # 停止并删除容器
+./start.sh rm gateway    # 删除指定容器（可传多个服务）
+./start.sh reset         # 停止并清空数据卷（危险操作）
+./start.sh ps            # 查看容器状态
+./start.sh logs          # 查看全部日志
+./start.sh logs gateway  # 查看单个服务日志
 ```
 
 ### 访问服务
@@ -202,4 +226,3 @@ curl -X POST "http://localhost:8003/api/v1/security/analysis" \
 1.  **端口冲突**：如果 `5432` 被本地 Postgres 占用，Docker 会映射到 `5433`。代码中已默认适配 `5433`，如需修改请检查 `.env` 和各服务的配置文件。
 2.  **Maven 下载慢**：请使用项目提供的 `microservices/edu-service/settings.xml`，已配置阿里云镜像。
 3.  **鉴权失败 (401)**：请确保所有服务 (`.env` 或配置文件中) 的 `JWT_SECRET` / `SECRET_KEY` 保持一致。
-

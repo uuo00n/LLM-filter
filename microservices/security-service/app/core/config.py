@@ -1,16 +1,26 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings(BaseSettings):
-    _ROOT_ENV_PATH = Path(__file__).resolve().parents[4] / ".env"
-    _SERVICE_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+def _resolve_env_files():
+    """
+    Resolve available .env files from project root to service root.
+    Load order is far-to-near so closer files can override shared defaults.
+    """
+    current_file = Path(__file__).resolve()
+    env_files = [parent / ".env" for parent in current_file.parents if (parent / ".env").exists()]
+    if not env_files:
+        return None
+    return tuple(reversed(env_files))
 
+
+class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(_ROOT_ENV_PATH, _SERVICE_ENV_PATH),
+        env_file=_resolve_env_files(),
         env_file_encoding="utf-8",
         case_sensitive=True,
+        env_ignore_empty=True,
     )
 
     API_V1_STR: str = "/api/v1"
@@ -44,5 +54,32 @@ class Settings(BaseSettings):
     # 数据同步配置
     ZABBIX_SYNC_INTERVAL: int = 3600
     ZABBIX_AUTO_SYNC: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_empty_env_values(cls, data):
+        if isinstance(data, dict):
+            return {key: value for key, value in data.items() if value != ""}
+        return data
+
+    @field_validator("REDIS_PORT", "REDIS_DB", "ZABBIX_SYNC_INTERVAL", mode="before")
+    @classmethod
+    def _fallback_numeric_defaults_for_empty_env(cls, value, info: ValidationInfo):
+        if value != "":
+            return value
+
+        defaults = {
+            "REDIS_PORT": 6379,
+            "REDIS_DB": 0,
+            "ZABBIX_SYNC_INTERVAL": 3600,
+        }
+        return defaults[info.field_name]
+
+    @field_validator("ZABBIX_AUTO_SYNC", mode="before")
+    @classmethod
+    def _fallback_bool_default_for_empty_env(cls, value):
+        if value == "":
+            return True
+        return value
 
 settings = Settings()
