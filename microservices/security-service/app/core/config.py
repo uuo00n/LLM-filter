@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field, ValidationInfo, field_validator, model_validator
+from pydantic import AliasChoices, Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def _resolve_env_files():
@@ -32,8 +32,8 @@ class Settings(BaseSettings):
 
     # Dify 配置
     DIFY_API_URL: str = "http://192.168.6.6/v1"
-    # 使用别名从环境变量 DIFY_API_KEY_SECURITY 读取
-    DIFY_API_KEY: str = Field("", alias="DIFY_API_KEY_SECURITY")
+    # 优先读取 DIFY_API_KEY_SECURITY，兼容旧变量 DIFY_API_KEY
+    DIFY_API_KEY: str = Field("", validation_alias=AliasChoices("DIFY_API_KEY_SECURITY", "DIFY_API_KEY"))
     DIFY_RESPONSE_MODE: str = "streaming"
 
     # MongoDB 配置

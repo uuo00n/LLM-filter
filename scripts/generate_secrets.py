@@ -183,6 +183,8 @@ def check_existing_env(env_file):
         "your_secure_password_here",
         "your_jwt_secret_key",
         "your_dify_api_key_here",
+        "your_dify_api_key_llm_here",
+        "your_dify_api_key_security_here",
         "your_admin_password_here"
     ]
     
@@ -249,7 +251,10 @@ def generate_env_file():
         'ALGORITHM': 'HS256',
         'ACCESS_TOKEN_EXPIRE_MINUTES': '30',
         'DIFY_API_URL': 'http://192.168.6.6/v1',
-        'DIFY_API_KEY': 'your_dify_api_key_here',
+        'DIFY_API_KEY_LLM': 'your_dify_api_key_llm_here',
+        'DIFY_API_KEY_SECURITY': 'your_dify_api_key_security_here',
+        # 兼容旧版配置（可选）
+        'DIFY_API_KEY': '',
         'DIFY_RESPONSE_MODE': 'streaming',
         'DIFY_MESSAGE_ENDPOINT': 'chat-messages',
          'MONGODB_URL': 'mongodb://mongo:27017',
@@ -307,7 +312,7 @@ def generate_env_file():
 # 📝 配置说明：
 #   - 所有敏感信息已自动生成
 #   - 保留了原有的服务地址配置
-#   - 需要手动填写 DIFY_API_KEY
+#   - 需要手动填写 DIFY_API_KEY_LLM 与 DIFY_API_KEY_SECURITY
 #   - 可根据实际需求修改其他配置
 # ============================================================
 
@@ -332,6 +337,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES={values['ACCESS_TOKEN_EXPIRE_MINUTES']}
 # 🔧 Dify AI 平台配置
 # ============================================================
 DIFY_API_URL={values['DIFY_API_URL']}
+DIFY_API_KEY_LLM={values['DIFY_API_KEY_LLM']}
+DIFY_API_KEY_SECURITY={values['DIFY_API_KEY_SECURITY']}
+# 兼容旧版单智能体配置（可留空）
 DIFY_API_KEY={values['DIFY_API_KEY']}
 DIFY_RESPONSE_MODE={values['DIFY_RESPONSE_MODE']}
 DIFY_MESSAGE_ENDPOINT={values['DIFY_MESSAGE_ENDPOINT']}
@@ -428,8 +436,8 @@ def print_post_generation_instructions():
     print_header("后续操作步骤")
     
     steps = [
-        "1️⃣  填写 DIFY_API_KEY",
-        "   编辑 .env 文件，填入您的 Dify API Key",
+        "1️⃣  填写 DIFY_API_KEY_LLM 与 DIFY_API_KEY_SECURITY",
+        "   编辑 .env 文件，分别填入两个 Dify 智能体 API Key",
         "   格式：app-xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "",
         "2️⃣  验证 .gitignore",

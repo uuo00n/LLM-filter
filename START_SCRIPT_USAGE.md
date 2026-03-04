@@ -37,7 +37,8 @@
 
 - `DB_PASSWORD`
 - `JWT_SECRET`
-- `DIFY_API_KEY`
+- `DIFY_API_KEY_LLM`
+- `DIFY_API_KEY_SECURITY`
 
 ### 3.3 生效方式
 

@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import Field, ValidationInfo, field_validator, model_validator
+from pydantic import AliasChoices, Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def _resolve_env_files():
@@ -43,8 +43,8 @@ class Settings(BaseSettings):
 
     # Dify配置
     DIFY_API_URL: str = "http://192.168.6.6/v1"
-    # 使用别名从环境变量 DIFY_API_KEY_LLM 读取，代码中仍通过 settings.DIFY_API_KEY 访问
-    DIFY_API_KEY: str = Field("", alias="DIFY_API_KEY_LLM")
+    # 优先读取 DIFY_API_KEY_LLM，兼容旧变量 DIFY_API_KEY
+    DIFY_API_KEY: str = Field("", validation_alias=AliasChoices("DIFY_API_KEY_LLM", "DIFY_API_KEY"))
     DIFY_RESPONSE_MODE: str = "streaming"
     DIFY_MESSAGE_ENDPOINT: str = "chat-messages"
 

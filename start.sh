@@ -35,7 +35,7 @@ LLM Filter 统一脚本
 
 推荐首次使用:
   1) ./start.sh init-env
-  2) 编辑 .env（至少确认 DB_PASSWORD / JWT_SECRET / DIFY_API_KEY）
+  2) 编辑 .env（至少确认 DB_PASSWORD / JWT_SECRET / DIFY_API_KEY_LLM / DIFY_API_KEY_SECURITY）
   3) ./start.sh up
 EOF
 }

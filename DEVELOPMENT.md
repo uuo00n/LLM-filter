@@ -34,7 +34,7 @@
 
 ### `.env` 如何生成和使用
 1. 执行 `./start.sh init-env` 会调用 `scripts/generate_secrets.py` 自动生成根目录 `.env`。
-2. 生成后至少检查这些配置：`DB_PASSWORD`、`JWT_SECRET`、`DIFY_API_KEY`。
+2. 生成后至少检查这些配置：`DB_PASSWORD`、`JWT_SECRET`、`DIFY_API_KEY_LLM`、`DIFY_API_KEY_SECURITY`。
 3. `./start.sh up` 启动时会自动读取根目录 `.env` 注入各服务容器。
 4. 修改 `.env` 后，优先执行 `./start.sh rebuild` 使配置生效（或 `./start.sh down && ./start.sh up` 全量重启）。
 
