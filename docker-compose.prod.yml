@@ -60,9 +60,13 @@ services:
       - DB_NAME=llm_filter_db
       - DB_PORT=5432
       - JWT_SECRET=llm_filter_secure_secret_key_2025_update_must_be_32_bytes
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - llm-network
 
@@ -92,8 +96,12 @@ services:
       # Dify Configuration
       - DIFY_API_URL=http://192.168.6.6/v1
       - DIFY_API_KEY=app-lkK33EQOVXXrjD9x3SKbItr7
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       - mongo
+      - redis
     networks:
       - llm-network
 
@@ -115,6 +123,18 @@ services:
       - DIFY_API_KEY=app-ggTb0oC9WXQQm2r7KrvVUS6v
       - MONGODB_URL=mongodb://mongo:27017
       - MONGODB_DB_NAME=security_service_db
+    networks:
+      - llm-network
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: llm-filter-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - llm-network
 
@@ -154,3 +174,4 @@ networks:
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:
