@@ -21,6 +21,12 @@ import org.springframework.context.annotation.Bean;
 public class EduServiceApplication {
 
 	public static void main(String[] args) {
+		// 尝试加载根目录 .env 文件 (用于本地开发)
+		// 注意：生产环境 Docker 会直接注入环境变量，这里仅作为本地开发辅助
+		// Spring Boot 默认不加载 .env，这里使用 System.setProperty 模拟或推荐使用插件
+		// 为了简单起见，这里不做复杂的 .env 解析，建议本地开发使用 IDE 插件或手动设置环境变量
+		// 或者使用 java-dotenv 库
+		
 		SpringApplication.run(EduServiceApplication.class, args);
 	}
 

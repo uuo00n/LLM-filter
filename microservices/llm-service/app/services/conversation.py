@@ -236,12 +236,30 @@ async def add_message(conversation_id: str, user_id: str, content: str) -> Dict[
     # 调用模型生成回复
     assistant_response = await generate_response(model_messages)
 
+    # 检查助手回复是否包含敏感词
+    response_check = await sensitive_word_filter.check_text(assistant_response)
+    if response_check["contains_sensitive_words"]:
+        # 记录敏感词审计日志
+        sensitive_record = {
+            "user_id": user_id,
+            "conversation_id": ObjectId(conversation_id),
+            "message_content": assistant_response,  # 记录原始违规内容
+            "source": "assistant",  # 标记来源为助手
+            "sensitive_words_found": response_check["sensitive_words_found"],
+            "highest_severity": response_check["highest_severity"],
+            "timestamp": datetime.now()
+        }
+        await db.db.sensitive_records.insert_one(sensitive_record)
+
+        # 屏蔽回复内容
+        assistant_response = "（系统拦截）生成的内容包含敏感信息，已屏蔽。"
+
     # 创建助手回复消息
     assistant_message = {
         "role": "assistant",
         "content": assistant_response,
         "timestamp": datetime.now(),
-        "contains_sensitive_words": False,
+        "contains_sensitive_words": False,  # 既然已屏蔽，标记为不包含（或者是 True 但内容已安全化）
         "sensitive_words_found": []
     }
 

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -9,12 +10,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("your-secret-key")
+var jwtSecret []byte
 
 func init() {
-	if secret := os.Getenv("JWT_SECRET"); secret != "" {
-		jwtSecret = []byte(secret)
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
+	if len(secret) < 32 {
+		log.Fatal("JWT_SECRET must be at least 32 characters long")
+	}
+	jwtSecret = []byte(secret)
 }
 
 func GetJWTSecret() []byte {

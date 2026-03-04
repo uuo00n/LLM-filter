@@ -60,11 +60,12 @@ func (s *AuthService) Register(req *RegisterRequest) (*model.User, error) {
 
 	// 创建用户
 	user := &model.User{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: hashedPwd,
-		Role:     "user",
-		Edition:  "edu",
+		Username:  req.Username,
+		Email:     req.Email,
+		Password:  hashedPwd,
+		Role:      "user",
+		RoleLevel: 1, // 默认普通用户等级
+		Edition:   "edu",
 	}
 
 	if err := s.repo.Create(user); err != nil {

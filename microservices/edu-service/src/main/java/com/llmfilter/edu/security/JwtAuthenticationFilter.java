@@ -21,7 +21,7 @@ import java.security.Key;
 @Component
 public class JwtAuthenticationFilter implements Filter {
 
-    @Value("${jwt.secret:your_secret_key_here}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     private Key key;

@@ -6,6 +6,8 @@ import com.llmfilter.edu.service.ScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import com.llmfilter.edu.security.UserContextHolder;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,9 +25,18 @@ public class ScheduleController {
 
     @PutMapping("/assign-teacher")
     @Operation(summary = "分配任课教师", description = "为特定课程分配任课教师")
-    public ResponseEntity<Map<String, Boolean>> assignTeacher(@RequestBody AssignTeacherPayload payload) {
+    public ResponseEntity<Map<String, Object>> assignTeacher(@RequestBody AssignTeacherPayload payload) {
+        // 权限检查：仅管理员可分配教师
+        String role = UserContextHolder.getContext().getRole();
+        if (!"administrator".equals(role)) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Permission denied: Administrator role required");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        }
+
         scheduleService.assignTeacher(payload);
-        Map<String, Boolean> result = new HashMap<>();
+        Map<String, Object> result = new HashMap<>();
         result.put("success", true);
         return ResponseEntity.ok(result);
     }

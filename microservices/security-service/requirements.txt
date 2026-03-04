@@ -8,3 +8,5 @@ python-dotenv==1.0.1
 feedparser>=6.0.10
 motor==3.3.2
 pymongo<4.7
+requests>=2.31.0
+

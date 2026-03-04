@@ -1,55 +1,58 @@
-import os
-# Pydantic v2 中 BaseSettings 已迁移到 pydantic-settings
-from pydantic_settings import BaseSettings
-from dotenv import load_dotenv
-
-# 加载环境变量 (尝试向上查找 .env)
-load_dotenv(verbose=True)  # 默认查找当前目录
-if not os.getenv("MONGODB_URL"):
-    # 如果没找到，尝试向上级目录查找（本地开发场景）
-    load_dotenv(dotenv_path="../../.env")
-    load_dotenv(dotenv_path="../../../.env") # 备用：防止层级变动
+from pathlib import Path
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    _ROOT_ENV_PATH = Path(__file__).resolve().parents[4] / ".env"
+    _SERVICE_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+
+    model_config = SettingsConfigDict(
+        env_file=(_ROOT_ENV_PATH, _SERVICE_ENV_PATH),
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore"
+    )
+
     # 应用配置
     APP_NAME: str = "LLM过滤系统"
     API_V1_STR: str = "/api/v1"
-    APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
-    
+    APP_BASE_URL: str = "http://localhost:8000"
+
     # 数据库配置
-    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-    DB_NAME: str = os.getenv("DB_NAME", "llm_filter_db")
-    
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    DB_NAME: str = "llm_filter_db"
+
     # JWT配置
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your_secret_key_here")
-    ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-    
+    SECRET_KEY: str = ""
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     # Ollama配置
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama2")
+    OLLAMA_BASE_URL: str = "http://192.168.6.6:11434/"
+    OLLAMA_MODEL: str = "deepseek-r1:14b"
 
     # Dify配置
-    DIFY_API_URL: str = os.getenv("DIFY_API_URL", "http://192.168.6.6/v1")
-    DIFY_API_KEY: str = os.getenv("DIFY_API_KEY", "app-sLnrbNjEi1GiTDGgL2B2DwLZ")
-    DIFY_RESPONSE_MODE: str = os.getenv("DIFY_RESPONSE_MODE", "streaming")
-    DIFY_MESSAGE_ENDPOINT: str = os.getenv("DIFY_MESSAGE_ENDPOINT", "chat-messages")
+    DIFY_API_URL: str = "http://192.168.6.6/v1"
+    # 使用别名从环境变量 DIFY_API_KEY_LLM 读取，代码中仍通过 settings.DIFY_API_KEY 访问
+    DIFY_API_KEY: str = Field("", alias="DIFY_API_KEY_LLM")
+    DIFY_RESPONSE_MODE: str = "streaming"
+    DIFY_MESSAGE_ENDPOINT: str = "chat-messages"
 
     # 应用运行模式开关：仅运行教育版或企业版之一
     # 允许的值："edu" / "biz"；若未设置则默认使用 "edu"
     # 注意：不再提供混合模式（mixed），如需混合请显式设置并在依赖中放行
-    APP_MODE: str = os.getenv("APP_MODE", "edu")
-    CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "*")
-    GITHUB_DEFAULT_REPO: str = os.getenv("GITHUB_DEFAULT_REPO", "")
-    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-    
+    APP_MODE: str = "edu"
+    CORS_ALLOWED_ORIGINS: str = "*"
+    GITHUB_DEFAULT_REPO: str = ""
+    GITHUB_TOKEN: str = ""
+
     # 学期配置
-    TERM_START_DATE: str = os.getenv("TERM_START_DATE", "2025-09-01")  # 默认开学日期
+    TERM_START_DATE: str = "2025-09-01"  # 默认开学日期
 
     # Redis 配置
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
-    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
-    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""
 
 settings = Settings()
