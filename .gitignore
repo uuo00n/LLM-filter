@@ -35,3 +35,9 @@ pip-delete-this-directory.txt
 .idea/
 .vscode/
 .DS_Store
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
