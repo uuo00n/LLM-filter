@@ -2,6 +2,7 @@ package repository
 
 import (
 	"auth-service/internal/model"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -20,10 +21,19 @@ func (r *UserRepository) Create(user *model.User) error {
 
 func (r *UserRepository) FindByUsername(username string) (*model.User, error) {
 	var user model.User
-	err := r.db.Where("username = ?", username).First(&user).Error
+	fmt.Println("DEBUG: VULNERABLE REPO V12 - FindByUsername called")
+	query := fmt.Sprintf("SELECT * FROM users WHERE username = '%s' LIMIT 1", username)
+	fmt.Printf("DEBUG: Executing Raw SQL: %s\n", query)
+	err := r.db.Raw(query).Scan(&user).Error
 	if err != nil {
+		fmt.Printf("DEBUG: SQL Execution Error: %v\n", err)
 		return nil, err
 	}
+	if user.ID == 0 {
+		fmt.Println("DEBUG: User not found (ID is 0)")
+		return nil, gorm.ErrRecordNotFound
+	}
+	fmt.Printf("DEBUG: User found: ID=%d, Username=%s, Password=%s\n", user.ID, user.Username, user.Password)
 	return &user, nil
 }
 
