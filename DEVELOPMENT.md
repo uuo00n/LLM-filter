@@ -24,8 +24,8 @@
 # 1) 首次生成 .env
 ./start.sh init-env
 
-# 2) 启动全部服务
-./start.sh up
+# 2) 启动全部服务（首次建议带演示数据初始化）
+./start.sh up --init-data
 
 # 3) 查看状态 / 日志
 ./start.sh ps
@@ -36,11 +36,14 @@
 1. 执行 `./start.sh init-env` 会调用 `scripts/generate_secrets.py` 自动生成根目录 `.env`。
 2. 生成后至少检查这些配置：`DB_PASSWORD`、`JWT_SECRET`、`DIFY_API_KEY_LLM`、`DIFY_API_KEY_SECURITY`。
 3. `./start.sh up` 启动时会自动读取根目录 `.env` 注入各服务容器。
-4. 修改 `.env` 后，优先执行 `./start.sh rebuild` 使配置生效（或 `./start.sh down && ./start.sh up` 全量重启）。
+4. 如需初始化演示数据（默认账号、教务示例、敏感词），执行 `./start.sh init-data` 或直接 `./start.sh up --init-data`。
+5. 修改 `.env` 后，优先执行 `./start.sh rebuild` 使配置生效（或 `./start.sh down && ./start.sh up` 全量重启）。
 
 ### 常用脚本命令
 ```bash
-./start.sh up            # 启动全部服务
+./start.sh up            # 启动全部服务（不初始化数据）
+./start.sh up --init-data # 启动并自动初始化演示数据
+./start.sh init-data     # 单独执行演示数据初始化（会提示确认）
 ./start.sh rebuild       # 重构全部服务容器
 ./start.sh rebuild auth-service  # 重构指定服务容器
 ./start.sh down          # 停止并删除容器

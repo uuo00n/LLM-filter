@@ -24,7 +24,8 @@ LLM Filter 统一脚本
 
 用法:
   ./start.sh init-env        生成 .env（仅首次）
-  ./start.sh up              构建并启动所有服务
+  ./start.sh up [--init-data] 构建并启动所有服务（可选初始化演示数据）
+  ./start.sh init-data [--yes] 初始化 PostgreSQL/Mongo 演示数据
   ./start.sh rebuild [svc]   重构容器（默认全部，可指定服务）
   ./start.sh down            停止并删除容器
   ./start.sh rm <svc...>     删除指定容器（可多个）
@@ -36,7 +37,7 @@ LLM Filter 统一脚本
 推荐首次使用:
   1) ./start.sh init-env
   2) 编辑 .env（至少确认 DB_PASSWORD / JWT_SECRET / DIFY_API_KEY_LLM / DIFY_API_KEY_SECURITY）
-  3) ./start.sh up
+  3) ./start.sh up --init-data
 EOF
 }
 
@@ -65,8 +66,80 @@ cmd_init_env() {
     echo "[INFO] .env 生成完成。请检查关键配置后再启动。"
 }
 
+load_env_vars() {
+    require_env
+    # shellcheck disable=SC1091
+    set -a
+    source .env
+    set +a
+}
+
+wait_for_postgres() {
+    local retries=30
+    local i
+    for ((i=1; i<=retries; i++)); do
+        if "${COMPOSE_CMD[@]}" exec -T -e PGPASSWORD="${DB_PASSWORD}" postgres \
+            pg_isready -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    echo "[ERROR] PostgreSQL 未就绪，初始化中止。"
+    exit 1
+}
+
+cmd_init_data() {
+    require_env
+    local yes_flag="${1:-}"
+    if [ "${yes_flag}" != "--yes" ]; then
+        echo "[WARN] 将执行初始化脚本并重置业务数据："
+        echo "       - scripts/init_postgres.sql (TRUNCATE + 默认账号)"
+        echo "       - scripts/init_edu_postgres.py (教务演示数据)"
+        echo "       - scripts/init_mongo.py (敏感词/对话相关集合)"
+        read -r -p "确认继续? (yes/no): " answer
+        if [ "${answer}" != "yes" ]; then
+            echo "[INFO] 已取消。"
+            return 0
+        fi
+    fi
+
+    load_env_vars
+
+    echo "[INFO] 确保初始化所需服务已启动..."
+    "${COMPOSE_CMD[@]}" up -d postgres redis mongo llm-service
+
+    echo "[INFO] 等待 PostgreSQL 就绪..."
+    wait_for_postgres
+
+    echo "[INFO] 执行 PostgreSQL 基础初始化 (init_postgres.sql)..."
+    cat scripts/init_postgres.sql | "${COMPOSE_CMD[@]}" exec -T \
+        -e PGPASSWORD="${DB_PASSWORD}" \
+        postgres psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}"
+
+    echo "[INFO] 执行 PostgreSQL 教务演示数据初始化 (init_edu_postgres.py)..."
+    "${COMPOSE_CMD[@]}" exec -T \
+        -e DB_HOST=postgres \
+        -e DB_PORT=5432 \
+        -e DB_USER="${DB_USER}" \
+        -e DB_PASSWORD="${DB_PASSWORD}" \
+        -e DB_NAME="${DB_NAME}" \
+        llm-service python /app/scripts/init_edu_postgres.py
+
+    echo "[INFO] 执行 MongoDB 初始化 (init_mongo.py)..."
+    "${COMPOSE_CMD[@]}" exec -T llm-service python /app/scripts/init_mongo.py
+
+    echo "[INFO] 数据初始化完成。"
+}
+
 cmd_up() {
     require_env
+    local init_data_flag="${1:-}"
+    if [ "${init_data_flag}" != "" ] && [ "${init_data_flag}" != "--init-data" ]; then
+        echo "[ERROR] up 仅支持可选参数: --init-data"
+        echo "[INFO] 用法: ./start.sh up [--init-data]"
+        exit 1
+    fi
+
     "${COMPOSE_CMD[@]}" up -d --build
     echo "[INFO] 服务启动完成。"
     echo "[INFO] 网关地址: http://localhost:8080"
@@ -75,6 +148,10 @@ cmd_up() {
     echo "       - http://localhost:8080/docs/edu/"
     echo "       - http://localhost:8080/docs/llm/"
     echo "       - http://localhost:8080/docs/security/"
+
+    if [ "${init_data_flag}" = "--init-data" ]; then
+        cmd_init_data --yes
+    fi
 }
 
 cmd_rebuild() {
@@ -128,8 +205,11 @@ case "$ACTION" in
     init-env)
         cmd_init_env
         ;;
+    init-data)
+        cmd_init_data "${2:-}"
+        ;;
     up)
-        cmd_up
+        cmd_up "${2:-}"
         ;;
     rebuild)
         cmd_rebuild "${@:2}"

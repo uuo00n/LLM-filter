@@ -12,8 +12,8 @@
 # 1) 首次生成 .env
 ./start.sh init-env
 
-# 2) 启动全部服务
-./start.sh up
+# 2) 启动全部服务并初始化演示数据
+./start.sh up --init-data
 
 # 3) 查看状态与日志
 ./start.sh ps
@@ -23,13 +23,15 @@
 `.env` 使用说明：
 1. `./start.sh init-env` 会自动生成根目录 `.env`。
 2. 启动时 `./start.sh up` 会把 `.env` 注入所有容器。
-3. Dify 建议分别填写 `DIFY_API_KEY_LLM`（LLM 服务）与 `DIFY_API_KEY_SECURITY`（Security 服务）；旧版 `DIFY_API_KEY` 仍兼容。
-4. 修改 `.env` 后可重构容器生效：`./start.sh rebuild`（或全量重启：`./start.sh down && ./start.sh up`）。
-5. 如果 `.env` 权限异常，可执行：`sudo chown $USER:staff .env && chmod 640 .env`。
+3. 首次启动如需默认账号/教务示例/敏感词，请执行 `./start.sh init-data`（或直接 `./start.sh up --init-data`）。
+4. Dify 建议分别填写 `DIFY_API_KEY_LLM`（LLM 服务）与 `DIFY_API_KEY_SECURITY`（Security 服务）；旧版 `DIFY_API_KEY` 仍兼容。
+5. 修改 `.env` 后可重构容器生效：`./start.sh rebuild`（或全量重启：`./start.sh down && ./start.sh up`）。
+6. 如果 `.env` 权限异常，可执行：`sudo chown $USER:staff .env && chmod 640 .env`。
 
 常用维护命令：
 - `./start.sh rebuild [service]`：重构容器（默认全部，可指定服务）
 - `./start.sh rm <service...>`：删除指定容器（可多个）
+- `./start.sh init-data [--yes]`：初始化演示数据（会重置业务数据）
 
 ## 系统架构
 

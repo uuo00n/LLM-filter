@@ -14,8 +14,8 @@
 # 1) 首次生成 .env
 ./start.sh init-env
 
-# 2) 启动全部服务
-./start.sh up
+# 2) 启动全部服务并初始化演示数据
+./start.sh up --init-data
 
 # 3) 查看状态
 ./start.sh ps
@@ -60,7 +60,10 @@
 ```bash
 ./start.sh help            # 查看帮助
 ./start.sh init-env        # 生成 .env（首次）
-./start.sh up              # 构建并启动所有服务
+./start.sh up              # 构建并启动所有服务（不初始化数据）
+./start.sh up --init-data  # 启动后自动执行数据库初始化脚本
+./start.sh init-data       # 单独执行数据库初始化脚本（会提示确认）
+./start.sh init-data --yes # 单独执行数据库初始化脚本（跳过确认）
 ./start.sh rebuild         # 重构全部服务容器
 ./start.sh rebuild gateway # 重构指定服务容器
 ./start.sh down            # 停止并删除容器
@@ -100,4 +103,13 @@ chmod 640 .env
 ```bash
 ./start.sh reset
 ./start.sh up
+```
+
+### 6.3 为什么没有默认账号（如 `admin_edu`）
+
+默认 `./start.sh up` 不会自动执行 `scripts/init_postgres.sql` 和其他初始化脚本。  
+如需写入演示账号/数据，请执行：
+
+```bash
+./start.sh init-data
 ```
