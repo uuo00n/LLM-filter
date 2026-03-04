@@ -3,6 +3,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: llm-filter-db
+    restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -13,6 +14,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - llm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis 缓存服务
   redis:
@@ -34,6 +40,7 @@ services:
       context: ./microservices/auth-service
       dockerfile: Dockerfile
     container_name: llm-filter-auth
+    restart: always
     ports:
       - "${AUTH_SERVICE_PORT:-8081}:8081"
     environment:
@@ -48,7 +55,8 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - TZ=${TZ}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - llm-network
 
@@ -58,6 +66,7 @@ services:
       context: ./microservices/edu-service
       dockerfile: Dockerfile
     container_name: llm-filter-edu
+    restart: always
     ports:
       - "${EDU_SERVICE_PORT:-8082}:8082"
     environment:
@@ -77,8 +86,10 @@ services:
       - SPRING_REDIS_PORT=${REDIS_PORT}
       - TZ=${TZ}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - llm-network
 
@@ -176,6 +187,7 @@ services:
   gateway:
     image: nginx:alpine
     container_name: llm-filter-gateway
+    restart: always
     ports:
       - "${GATEWAY_PORT:-8080}:80"
     volumes:
@@ -183,10 +195,14 @@ services:
     environment:
       - TZ=${TZ}
     depends_on:
-      - auth-service
-      - edu-service
-      - llm-service
-      - security-service
+      auth-service:
+        condition: service_started
+      edu-service:
+        condition: service_started
+      llm-service:
+        condition: service_started
+      security-service:
+        condition: service_started
     networks:
       - llm-network
 
